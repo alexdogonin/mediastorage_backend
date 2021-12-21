@@ -2,14 +2,16 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"path"
 	"strconv"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
@@ -18,6 +20,8 @@ func main() {
 	if len(rootPath) == 0 {
 		log.Fatal(errors.New("ROOT_PATH is required"))
 	}
+
+	rootPath = path.Clean(rootPath)
 
 	port := os.Getenv("PORT")
 	{
@@ -33,98 +37,104 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// mux.HandleFunc("/media", func(rw http.ResponseWriter, req *http.Request) {
-	request := struct {
-		Cursor string `json:"cursor"`
-	}{}
+	mux.HandleFunc("/media", func(rw http.ResponseWriter, req *http.Request) {
+		query := req.URL.Query()
 
-	// err := json.NewDecoder(req.Body).Decode(&request)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	rw.WriteHeader(http.StatusBadRequest)
-	// 	return
-	// }
+		cursor := query.Get("cursor")
 
-	// open dir
-	// iterate from last file
-	// if last file is null, iterate from the begin
+		dir := rootPath
+		filename := ""
+		if len(cursor) != 0 {
+			lastFile, err := base64.RawStdEncoding.DecodeString(cursor)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-	dir := rootPath
-	filename := ""
-	if len(request.Cursor) != 0 {
-		lastFile, err := base64.RawStdEncoding.DecodeString(request.Cursor)
-		if err != nil {
-			log.Fatal(err)
+			dir, filename = path.Split(string(lastFile))
+			dir = path.Dir(dir)
+		}
+		_ = filename
+		_ = dir
+
+		resp := struct {
+			Media []struct {
+				// ID string
+				ThumbURL    string `json:"thumb_url"`
+				DetailURL   string `json:"detail_url"`
+				OriginalURL string `json:"original_url"`
+			} `json:"media"`
+			Cursor string `json:"cursor"`
+		}{}
+
+		limit := 50
+
+	mainLoop:
+		for {
+			dirEntry, err := fs.ReadDir(os.DirFS(dir), ".")
+			if err != nil {
+				log.Println(err)
+				rw.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			var e fs.DirEntry
+			found := len(filename) == 0
+			for _, e = range dirEntry {
+				_ = e
+				if !found {
+					if e.Name() == filename {
+						found = true
+					}
+					continue
+				}
+
+				if e.IsDir() {
+					dir = path.Join(dir, e.Name())
+					filename = ""
+					continue mainLoop
+				}
+
+				fileFullName := path.Join(dir, e.Name())
+
+				fileID := base64.RawURLEncoding.EncodeToString([]byte(fileFullName))
+				fUrl := "http://localhost:" + port + "/media/" + fileID
+
+				resp.Media = append(resp.Media, struct {
+					ThumbURL    string "json:\"thumb_url\""
+					DetailURL   string "json:\"detail_url\""
+					OriginalURL string "json:\"original_url\""
+				}{
+					DetailURL:   fUrl,
+					OriginalURL: fUrl,
+					ThumbURL:    fUrl,
+				})
+
+				if len(resp.Media) == limit {
+					resp.Cursor = fileID
+					break mainLoop
+				}
+			}
+
+			if dir == rootPath {
+				break
+			}
+
+			dir, filename = path.Split(dir)
+			dir = path.Dir(dir)
 		}
 
-		fmt.Println("last file: ", string(lastFile))
-
-		dir, filename = path.Split(string(lastFile))
-		dir = path.Dir(dir)
-	}
-	_ = filename
-	_ = dir
-
-mainLoop:
-	for {
-		dirEntry, err := fs.ReadDir(os.DirFS(dir), ".")
+		err := json.NewEncoder(rw).Encode(resp)
 		if err != nil {
 			log.Println(err)
-			// rw.WriteHeader(http.StatusInternalServerError)
-			return
+			rw.WriteHeader(http.StatusInternalServerError)
 		}
-
-		var e fs.DirEntry
-		found := len(filename) == 0
-		for _, e = range dirEntry {
-			_ = e
-			if !found {
-				if e.Name() == filename {
-					found = true
-				}
-				continue
-			}
-
-			if e.IsDir() {
-				dir = path.Join(dir, e.Name())
-				filename = ""
-				continue mainLoop
-			}
-
-			fmt.Println(path.Join(dir, e.Name()))
-			// iterate files and add to resp
-			// last file is cursor
-		}
-
-		if dir == rootPath {
-			break
-		}
-
-		dir, filename = path.Split(dir)
-		dir = path.Dir(dir)
-	}
-	// resp := []struct {
-	// 	Media []struct {
-	// 		ID string
-	// 		ThumbURL,
-	// 		DetailURL,
-	// 		OriginalURL string
-	// 	}
-	// 	Cursor string
-	// }{}
-
-	// err = json.NewEncoder(rw).Encode(resp)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	rw.WriteHeader(http.StatusInternalServerError)
-	// }
-	// })
+	})
 	mux.HandleFunc("/media/{id}", func(rw http.ResponseWriter, req *http.Request) {
-
+		req.URL.
 	})
 
-	// err := http.ListenAndServe(":"+port, mux)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	err := http.ListenAndServe(":"+port, mux)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
