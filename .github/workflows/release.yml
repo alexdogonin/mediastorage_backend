@@ -32,10 +32,9 @@ jobs:
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG: ${GITHUB_REF##*/}
       with:
-        tag_name: ${TAG}
-        release_name: Release ${TAG}
+        tag_name: ${GITHUB_REF##*/}
+        release_name: Release ${GITHUB_REF##*/}
         draft: false
         prerelease: false
         
