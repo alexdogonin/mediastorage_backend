@@ -15,7 +15,7 @@ jobs:
     
     - name: t
       run: |
-        echo ${{ github.event.ref##*/ }}
+        echo tag ${GITHUB_REF##*/}
     
 #     - name: Set up Go
 #       uses: actions/setup-go@v2
