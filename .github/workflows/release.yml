@@ -1,9 +1,8 @@
 name: Release
 
 on:
- workflow_run:
-   branches: [master]
-
+ workflow_dispatch:
+   
 jobs:
 
   build:
