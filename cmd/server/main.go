@@ -11,6 +11,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	_ "github.com/joho/godotenv/autoload"
 )
 
@@ -35,7 +36,7 @@ func main() {
 		}
 	}
 
-	mux := http.NewServeMux()
+	mux := chi.NewMux()
 
 	mux.HandleFunc("/media", func(rw http.ResponseWriter, req *http.Request) {
 		query := req.URL.Query()
@@ -45,7 +46,7 @@ func main() {
 		dir := rootPath
 		filename := ""
 		if len(cursor) != 0 {
-			lastFile, err := base64.RawStdEncoding.DecodeString(cursor)
+			lastFile, err := base64.RawURLEncoding.DecodeString(cursor)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -130,7 +131,16 @@ func main() {
 		}
 	})
 	mux.HandleFunc("/media/{id}", func(rw http.ResponseWriter, req *http.Request) {
-		req.URL.
+		id := chi.URLParam(req, "id")
+
+		fname, err := base64.RawURLEncoding.DecodeString(id)
+		if err != nil {
+			log.Println(err)
+			http.Error(rw, "internal error", http.StatusInternalServerError)
+			return
+		}
+
+		http.ServeFile(rw, req, string(fname))
 	})
 
 	err := http.ListenAndServe(":"+port, mux)
