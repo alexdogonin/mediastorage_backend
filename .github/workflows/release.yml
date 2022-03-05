@@ -6,9 +6,14 @@ on:
 jobs:
 
   build:
-    runs-on: golang:1.17.8
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    
+    - name: install golang
+      run: |
+        apt update
+        apt install golang
 
     - name: Build
       env: 
