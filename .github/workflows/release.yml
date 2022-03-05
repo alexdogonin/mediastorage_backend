@@ -12,8 +12,8 @@ jobs:
     
     - name: install golang
       run: |
-        apt update
-        apt install golang
+        sudo apt update
+        sudo apt install golang
 
     - name: Build
       env: 
