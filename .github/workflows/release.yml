@@ -26,7 +26,7 @@ jobs:
         CGO_ENABLED: 0
       run:  |
         go build -o bin/server -ldflags '-w' -o bin/server -v ./cmd/server
-        tar -cf bin/server.tar -C bin server
+        tar -cf bin/server.tar --add-file README.md -C bin --add-file server
 
     - name: Test
       run: go test -v ./...
