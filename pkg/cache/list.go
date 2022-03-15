@@ -17,13 +17,18 @@ func (c *Cache) List(cursor string, limit uint) ([]root.MediaItem, string, error
 		if !ok {
 			return nil, "", errors.New("not found")
 		}
+
 	}
 
 	resp := make([]root.MediaItem, 0, limit)
 	for _, m := range c.items[itemIdx:] {
-
 		resp = append(resp, m)
+		cursor = m.UUID.String()
+
+		if len(resp) == int(limit) {
+			break
+		}
 	}
 
-	return nil, "", nil
+	return resp, cursor, nil
 }

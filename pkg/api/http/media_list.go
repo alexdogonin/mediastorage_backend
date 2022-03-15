@@ -2,9 +2,9 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"path"
 	"strconv"
 )
 
@@ -37,10 +37,12 @@ func NewMediaList(addr string, s Servicer) http.HandlerFunc {
 
 		for _, m := range media {
 			resp.Media = append(resp.Media, MediaItem{
-				UUID:        m.UUID.String(),
-				ThumbURL:    path.Join(addr, m.UUID.String(), "thumb"),
-				DetailURL:   path.Join(addr, m.UUID.String(), "detail"),
-				OriginalURL: path.Join(addr, m.UUID.String()),
+				UUID: m.UUID.String(),
+				// ThumbURL:    fmt.Sprintf("%s/%s/%s", addr, m.UUID.String(), "thumb"),
+				// DetailURL:   fmt.Sprintf("%s/%s/%s", addr, m.UUID.String(), "detail"),
+				ThumbURL:    fmt.Sprintf("%s/%s", addr, m.UUID.String()),
+				DetailURL:   fmt.Sprintf("%s/%s", addr, m.UUID.String()),
+				OriginalURL: fmt.Sprintf("%s/%s", addr, m.UUID.String()),
 			})
 		}
 

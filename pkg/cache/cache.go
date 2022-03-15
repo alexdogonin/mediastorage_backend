@@ -16,9 +16,10 @@ type Cache struct {
 	itemsMx  sync.RWMutex
 }
 
-func NewCache() Cache {
-	return Cache{
-		items: make([]root.MediaItem, 100),
+func NewCache() *Cache {
+	return &Cache{
+		items:    make([]root.MediaItem, 0, 100),
+		itemsIdx: make(map[string]uint),
 	}
 }
 
@@ -33,6 +34,10 @@ func (c *Cache) Fill(rootDir string) error {
 	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if d.IsDir() {
+			return nil
 		}
 
 		uuid := uuid.New()
