@@ -37,6 +37,15 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	addr := os.Getenv("ADDRESS")
+	if len(addr) == 0 {
+		addr = "0.0.0.0"
+	}
+
+	scheme := os.Getenv("SCHEME")
+	if len(scheme) == 0 {
+		scheme = "http"
+	}
 
 	fmt.Println("cur dir: " + os.Getenv("PWD"))
 	fmt.Println("root path: " + rootPath)
@@ -56,7 +65,7 @@ func main() {
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"*"},
 	}))
-	mux.Get("/media", apihttp.NewMediaList("http://localhost:"+port+"/media", cache))
+	mux.Get("/media", apihttp.NewMediaList(scheme+"://"+addr+":"+port+"/media", cache))
 	mux.Get("/media/{id}", apihttp.NewMediaItem(cache))
 
 	log.Println("start server")
