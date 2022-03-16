@@ -11,6 +11,7 @@ import (
 
 	apihttp "github.com/mediastorage_backend/pkg/api/http"
 	"github.com/mediastorage_backend/pkg/cache"
+	"github.com/rs/cors"
 
 	"github.com/go-chi/chi/v5"
 	_ "github.com/joho/godotenv/autoload"
@@ -50,6 +51,10 @@ func main() {
 
 	mux := chi.NewMux()
 
+	mux.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"https://*", "http://*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	}))
 	mux.HandleFunc("/media", apihttp.NewMediaList("http://localhost:"+port+"/media", cache))
 	mux.HandleFunc("/media/{id}", apihttp.NewMediaItem(cache))
 
