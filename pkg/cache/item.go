@@ -8,8 +8,8 @@ import (
 )
 
 func (c *Cache) Item(UUID uuid.UUID) (root.MediaItem, error) {
-	c.itemsMx.RLock()
-	defer c.itemsMx.RUnlock()
+	c.mx.RLock()
+	defer c.mx.RUnlock()
 
 	itemInd, ok := c.itemsIdx[UUID.String()]
 	if !ok {

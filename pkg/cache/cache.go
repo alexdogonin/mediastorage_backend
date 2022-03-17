@@ -17,9 +17,12 @@ import (
 )
 
 type Cache struct {
-	items    []root.MediaItem
-	itemsIdx map[string]uint
-	itemsMx  sync.RWMutex
+	items     []root.MediaItem
+	itemsIdx  map[string]uint
+	albums    []root.MediaAlbum
+	albumsIdx map[string]uint
+
+	mx sync.RWMutex
 }
 
 func NewCache() *Cache {
@@ -34,8 +37,8 @@ func (c *Cache) Fill(rootDir string) error {
 		return errors.New("cache isn't initialized")
 	}
 
-	c.itemsMx.Lock()
-	defer c.itemsMx.Unlock()
+	c.mx.Lock()
+	defer c.mx.Unlock()
 
 	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -43,6 +46,14 @@ func (c *Cache) Fill(rootDir string) error {
 		}
 
 		if d.IsDir() {
+			a := root.MediaAlbum{
+				Name: d.Name(),
+				UUID: uuid.New(),
+			}
+
+			c.albums = append(c.albums, a)
+			c.albumsIdx[a.UUID.String()] = uint(len(c.albums) - 1)
+
 			return nil
 		}
 
@@ -75,7 +86,7 @@ func (c *Cache) Fill(rootDir string) error {
 			Thumb:    info,
 		})
 
-		c.itemsIdx[uuid.String()] = uint(len(c.items))
+		c.itemsIdx[uuid.String()] = uint(len(c.items)) - 1
 
 		return nil
 	})
