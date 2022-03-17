@@ -2,12 +2,16 @@ package cache
 
 import (
 	"errors"
+	"image"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/google/uuid"
 	root "github.com/mediastorage_backend/pkg"
+
+	_ "image/jpeg"
 )
 
 type Cache struct {
@@ -40,16 +44,33 @@ func (c *Cache) Fill(rootDir string) error {
 			return nil
 		}
 
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+
+		cfg, format, err := image.DecodeConfig(f)
+		if err != nil {
+			return err
+		}
+
 		uuid := uuid.New()
 		if _, ok := c.itemsIdx[uuid.String()]; ok {
 			return errors.New(uuid.String() + " already exists")
 		}
 
+		info := root.MediaItemInfo{
+			Path:   path,
+			Width:  uint(cfg.Width),
+			Height: uint(cfg.Height),
+			Format: format,
+		}
+
 		c.items = append(c.items, root.MediaItem{
-			UUID:         uuid,
-			OriginalPath: path,
-			DetailPath:   path,
-			ThumbPath:    path,
+			UUID:     uuid,
+			Original: info,
+			Detail:   info,
+			Thumb:    info,
 		})
 
 		c.itemsIdx[uuid.String()] = uint(len(c.items))

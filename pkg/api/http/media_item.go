@@ -31,6 +31,6 @@ func NewMediaItem(s Servicer) http.HandlerFunc {
 			return
 		}
 
-		http.ServeFile(rw, req, item.OriginalPath)
+		http.ServeFile(rw, req, item.Original.Path)
 	}
 }
