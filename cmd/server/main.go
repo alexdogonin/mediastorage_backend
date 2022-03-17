@@ -76,6 +76,7 @@ func main() {
 	mux.Get("/media", apihttp.NewMediaList(scheme+"://"+addr+":"+port+"/media", cache))
 	mux.Get("/media/{id}", apihttp.NewMediaItem(cache))
 	mux.Get("/v2/media", apihttp.NewMediaListV2(scheme+"://"+addr+":"+port+"/media", cache))
+	mux.Get("/media/albums", func(w http.ResponseWriter, r *http.Request) {})
 
 	log.Println("start server")
 	err = http.ListenAndServe(":"+port, mux)

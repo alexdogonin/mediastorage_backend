@@ -1,36 +1,17 @@
 package http
 
-import (
-	"log"
-	"net/http"
+type MediaItem struct {
+	UUID        string         `json:"uuid"`
+	ThumbURL    string         `json:"thumb_url,omitempty"`
+	DetailURL   string         `json:"detail_url,omitempty"`
+	OriginalURL string         `json:"original_url,omitempty"`
+	Thumb       *MediaItemInfo `json:"thumb,omitempty"`
+	Detail      *MediaItemInfo `json:"detail,omitempty"`
+	Original    *MediaItemInfo `json:"original,omitempty"`
+}
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-)
-
-func NewMediaItem(s Servicer) http.HandlerFunc {
-	return func(rw http.ResponseWriter, req *http.Request) {
-		id := chi.URLParam(req, "id")
-		if len(id) == 0 {
-			log.Println("parameter id is required")
-			http.Error(rw, "parameter id is required", http.StatusBadRequest)
-			return
-		}
-
-		UUID, err := uuid.Parse(id)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, "id is not correct uuid", http.StatusBadRequest)
-			return
-		}
-
-		item, err := s.Item(UUID)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, "internal error", http.StatusInternalServerError)
-			return
-		}
-
-		http.ServeFile(rw, req, item.Original.Path)
-	}
+type MediaItemInfo struct {
+	URL    string `json:"url"`
+	Width  uint   `json:"width"`
+	Height uint   `json:"height"`
 }
