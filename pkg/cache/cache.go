@@ -27,8 +27,10 @@ type Cache struct {
 
 func NewCache() *Cache {
 	return &Cache{
-		items:    make([]root.MediaItem, 0, 100),
-		itemsIdx: make(map[string]uint),
+		items:     make([]root.MediaItem, 0, 100),
+		itemsIdx:  make(map[string]uint),
+		albums:    make([]root.MediaAlbum, 0, 100),
+		albumsIdx: make(map[string]uint),
 	}
 }
 
@@ -37,27 +39,53 @@ func (c *Cache) Fill(rootDir string) error {
 		return errors.New("cache isn't initialized")
 	}
 
+	stat, err := os.Stat(rootDir)
+	if err != nil {
+		return err
+	}
+
+	if !stat.IsDir() {
+		return errors.New("rootDir must be a directory")
+	}
+
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	albums := map[string]uuid.UUID{}
+
+	return filepath.WalkDir(rootDir, func(p string, e fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if d.IsDir() {
+		d := filepath.Dir(p)
+
+		curAlbUUID, _ := albums[d]
+
+		if e.IsDir() {
 			a := root.MediaAlbum{
-				Name: d.Name(),
+				Name: e.Name(),
 				UUID: uuid.New(),
 			}
 
 			c.albums = append(c.albums, a)
 			c.albumsIdx[a.UUID.String()] = uint(len(c.albums) - 1)
 
+			baseAlbumIdx, ok := c.albumsIdx[curAlbUUID.String()]
+			if !ok {
+				return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
+			}
+
+			baseAlbum := c.albums[baseAlbumIdx]
+			baseAlbum.Items = append(baseAlbum.Items, root.MediaAlbumItem{
+				Type: root.AlbumItem_Album,
+				UUID: a.UUID,
+			})
+
 			return nil
 		}
 
-		f, err := os.Open(path)
+		f, err := os.Open(p)
 		if err != nil {
 			return err
 		}
@@ -73,7 +101,7 @@ func (c *Cache) Fill(rootDir string) error {
 		}
 
 		info := root.MediaItemInfo{
-			Path:   path,
+			Path:   p,
 			Width:  uint(cfg.Width),
 			Height: uint(cfg.Height),
 			Format: format,
@@ -87,6 +115,17 @@ func (c *Cache) Fill(rootDir string) error {
 		})
 
 		c.itemsIdx[uuid.String()] = uint(len(c.items)) - 1
+
+		curAlbumIdx, ok := c.albumsIdx[curAlbUUID.String()]
+		if !ok {
+			return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
+		}
+
+		curAlbum := c.albums[curAlbumIdx]
+		curAlbum.Items = append(curAlbum.Items, root.MediaAlbumItem{
+			Type: root.AlbumItem_File,
+			UUID: uuid,
+		})
 
 		return nil
 	})
