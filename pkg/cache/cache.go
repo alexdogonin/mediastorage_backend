@@ -11,7 +11,9 @@ import (
 	"github.com/google/uuid"
 	root "github.com/mediastorage_backend/pkg"
 
+	_ "image/gif"
 	_ "image/jpeg"
+	_ "image/png"
 )
 
 type Cache struct {
