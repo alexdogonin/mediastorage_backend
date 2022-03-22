@@ -60,8 +60,6 @@ func (c *Cache) Fill(rootDir string) error {
 
 		d := filepath.Dir(p)
 
-		curAlbUUID, _ := albums[d]
-
 		if e.IsDir() {
 			a := root.MediaAlbum{
 				Name: e.Name(),
@@ -70,10 +68,12 @@ func (c *Cache) Fill(rootDir string) error {
 
 			c.albums = append(c.albums, a)
 			c.albumsIdx[a.UUID.String()] = uint(len(c.albums) - 1)
+			albums[p] = a.UUID
 
-			baseAlbumIdx, ok := c.albumsIdx[curAlbUUID.String()]
+			baseAlbumIdx, ok := c.albumsIdx[a.UUID.String()]
 			if !ok {
-				return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
+				return nil
+				// return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
 			}
 
 			baseAlbum := c.albums[baseAlbumIdx]
@@ -115,6 +115,7 @@ func (c *Cache) Fill(rootDir string) error {
 		})
 
 		c.itemsIdx[uuid.String()] = uint(len(c.items)) - 1
+		curAlbUUID := albums[d]
 
 		curAlbumIdx, ok := c.albumsIdx[curAlbUUID.String()]
 		if !ok {
