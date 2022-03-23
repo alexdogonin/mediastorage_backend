@@ -17,10 +17,11 @@ import (
 )
 
 type Cache struct {
-	items     []root.MediaItem
-	itemsIdx  map[string]uint
-	albums    []root.MediaAlbum
-	albumsIdx map[string]uint
+	items         []root.MediaItem
+	itemsIdx      map[string]uint
+	albums        []root.MediaAlbum
+	albumsIdx     map[string]uint
+	rootAlbumUUID uuid.UUID
 
 	mx sync.RWMutex
 }
@@ -81,6 +82,10 @@ func (c *Cache) Fill(rootDir string) error {
 				Type: root.AlbumItem_Album,
 				UUID: a.UUID,
 			})
+
+			if p == rootDir {
+				c.rootAlbumUUID = a.UUID
+			}
 
 			return nil
 		}

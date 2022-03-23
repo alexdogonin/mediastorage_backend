@@ -9,6 +9,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/google/uuid"
 	apihttp "github.com/mediastorage_backend/pkg/api/http"
 	"github.com/mediastorage_backend/pkg/cache"
 
@@ -76,11 +77,30 @@ func main() {
 	mux.Get("/media", apihttp.NewMediaList(scheme+"://"+addr+":"+port+"/media", cache))
 	mux.Get("/media/{id}", apihttp.NewMediaItem(cache))
 	mux.Get("/v2/media", apihttp.NewMediaListV2(scheme+"://"+addr+":"+port+"/media", cache))
-	mux.Get("/media/albums", func(w http.ResponseWriter, r *http.Request) {
+	mux.Get("/media/albums/{id}", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		prev := query.Get("prev")
+		id := chi.URLParam(r, "id")
+		cursor := query.Get("cursor")
+
+		var UUID uuid.UUID
+		var err error
+		if len(id) != 0 {
+			UUID, err = uuid.Parse(id)
+			if err != nil {
+				log.Println(err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		album, err := cache.Album(UUID, cursor)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "internal", http.StatusInternalServerError)
+			return
+		}
+
 		
-		cache.
 	})
 
 	log.Println("start server")
