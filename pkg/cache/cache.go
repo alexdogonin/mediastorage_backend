@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -71,21 +72,22 @@ func (c *Cache) Fill(rootDir string) error {
 			c.albumsIdx[a.UUID.String()] = uint(len(c.albums) - 1)
 			albums[p] = a.UUID
 
-			baseAlbumIdx, ok := c.albumsIdx[a.UUID.String()]
+			if p == rootDir {
+				c.rootAlbumUUID = a.UUID
+			}
+
+			baseAlbumUUID := albums[d]
+			baseAlbumIdx, ok := c.albumsIdx[baseAlbumUUID.String()]
 			if !ok {
 				return nil
 				// return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
 			}
 
-			baseAlbum := c.albums[baseAlbumIdx]
+			baseAlbum := &c.albums[baseAlbumIdx]
 			baseAlbum.Items = append(baseAlbum.Items, root.MediaAlbumItem{
 				Type: root.AlbumItem_Album,
 				UUID: a.UUID,
 			})
-
-			if p == rootDir {
-				c.rootAlbumUUID = a.UUID
-			}
 
 			return nil
 		}
@@ -97,7 +99,9 @@ func (c *Cache) Fill(rootDir string) error {
 
 		cfg, format, err := image.DecodeConfig(f)
 		if err != nil {
-			return err
+			// return err
+			log.Println(p, " parse error: ", err)
+			return nil
 		}
 
 		uuid := uuid.New()
@@ -127,7 +131,7 @@ func (c *Cache) Fill(rootDir string) error {
 			return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
 		}
 
-		curAlbum := c.albums[curAlbumIdx]
+		curAlbum := &c.albums[curAlbumIdx]
 		curAlbum.Items = append(curAlbum.Items, root.MediaAlbumItem{
 			Type: root.AlbumItem_File,
 			UUID: uuid,

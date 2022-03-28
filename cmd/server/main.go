@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	root "github.com/mediastorage_backend/pkg"
 	apihttp "github.com/mediastorage_backend/pkg/api/http"
 	"github.com/mediastorage_backend/pkg/cache"
 
@@ -77,10 +79,13 @@ func main() {
 	mux.Get("/media", apihttp.NewMediaList(scheme+"://"+addr+":"+port+"/media", cache))
 	mux.Get("/media/{id}", apihttp.NewMediaItem(cache))
 	mux.Get("/v2/media", apihttp.NewMediaListV2(scheme+"://"+addr+":"+port+"/media", cache))
-	mux.Get("/media/albums/{id}", func(w http.ResponseWriter, r *http.Request) {
+
+	aHandler := func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 		id := chi.URLParam(r, "id")
 		cursor := query.Get("cursor")
+
+		log.Println("/media/albums/{id}")
 
 		var UUID uuid.UUID
 		var err error
@@ -100,8 +105,59 @@ func main() {
 			return
 		}
 
-		
-	})
+		resp := apihttp.MediaAlbumResponse{
+			Name: album.Name,
+		}
+
+		for _, a := range album.Items {
+			typeStr := "file"
+			if a.Type == root.AlbumItem_Album {
+				typeStr = "album"
+			}
+
+			addr1 := scheme + "://" + addr + ":" + port + "/media"
+
+			item := apihttp.MediaAlbumItem{
+				// Name: a.Name,
+				Type: typeStr,
+			}
+
+			if a.Type == root.AlbumItem_File {
+				item.Thumb = &apihttp.MediaItemInfo{
+					// Width: a.Width,
+					// Height: a.Heigh,
+					URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
+				}
+				item.Detail = &apihttp.MediaItemInfo{
+					// Width: a.Width,
+					// Height: a.Heigh,
+					URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
+				}
+				item.Original = &apihttp.MediaItemInfo{
+					// Width: a.Width,
+					// Height: a.Heigh,
+					URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
+				}
+			}
+
+			if a.Type == root.AlbumItem_Album {
+				item.Album = &apihttp.MediaAlbumInfo{
+					// Name: a.Name,
+					URL: fmt.Sprintf("%s/albums/%s", addr1, a.UUID.String()),
+				}
+			}
+
+			resp.Items = append(resp.Items, item)
+		}
+
+		err = json.NewEncoder(w).Encode(resp)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
+	}
+	mux.Get("/media/albums/{id}", aHandler)
+	mux.Get("/media/albums", aHandler)
 
 	log.Println("start server")
 	err = http.ListenAndServe(":"+port, mux)

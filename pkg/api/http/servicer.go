@@ -8,6 +8,5 @@ import (
 type Servicer interface {
 	Item(uuid.UUID) (root.MediaItem, error)
 	List(cursor string, limit uint) ([]root.MediaItem, string, error)
-	// Albums(cursor string, limit uint)
-	// Album(uuid.UUID)
+	Album(UUID uuid.UUID, cursor string) (root.MediaAlbum, error)
 }
