@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -10,8 +9,6 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/google/uuid"
-	root "github.com/mediastorage_backend/pkg"
 	apihttp "github.com/mediastorage_backend/pkg/api/http"
 	"github.com/mediastorage_backend/pkg/cache"
 
@@ -76,88 +73,91 @@ func main() {
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"*"},
 	}))
-	mux.Get("/media", apihttp.NewMediaList(scheme+"://"+addr+":"+port+"/media", cache))
+
+	itemAddr := scheme + "://" + addr + ":" + port + "/media"
+	albumAddr := itemAddr + "/albums"
+	mux.Get("/media", apihttp.NewMediaList(itemAddr, cache))
 	mux.Get("/media/{id}", apihttp.NewMediaItem(cache))
-	mux.Get("/v2/media", apihttp.NewMediaListV2(scheme+"://"+addr+":"+port+"/media", cache))
+	mux.Get("/v2/media", apihttp.NewMediaListV2(albumAddr, cache))
 
-	aHandler := func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		id := chi.URLParam(r, "id")
-		cursor := query.Get("cursor")
+	// aHandler := func(w http.ResponseWriter, r *http.Request) {
+	// 	query := r.URL.Query()
+	// 	id := chi.URLParam(r, "id")
+	// 	cursor := query.Get("cursor")
 
-		log.Println("/media/albums/{id}")
+	// 	log.Println("/media/albums/{id}")
 
-		var UUID uuid.UUID
-		var err error
-		if len(id) != 0 {
-			UUID, err = uuid.Parse(id)
-			if err != nil {
-				log.Println(err)
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-		}
+	// 	var UUID uuid.UUID
+	// 	var err error
+	// 	if len(id) != 0 {
+	// 		UUID, err = uuid.Parse(id)
+	// 		if err != nil {
+	// 			log.Println(err)
+	// 			http.Error(w, err.Error(), http.StatusBadRequest)
+	// 			return
+	// 		}
+	// 	}
 
-		album, err := cache.Album(UUID, cursor)
-		if err != nil {
-			log.Println(err)
-			http.Error(w, "internal", http.StatusInternalServerError)
-			return
-		}
+	// 	album, err := cache.Album(UUID, cursor)
+	// 	if err != nil {
+	// 		log.Println(err)
+	// 		http.Error(w, "internal", http.StatusInternalServerError)
+	// 		return
+	// 	}
 
-		resp := apihttp.MediaAlbumResponse{
-			Name: album.Name,
-		}
+	// 	resp := apihttp.MediaAlbumResponse{
+	// 		Name: album.Name,
+	// 	}
 
-		for _, a := range album.Items {
-			typeStr := "file"
-			if a.Type == root.AlbumItem_Album {
-				typeStr = "album"
-			}
+	// 	for _, a := range album.Items {
+	// 		typeStr := "file"
+	// 		if a.Type == root.AlbumItem_Album {
+	// 			typeStr = "album"
+	// 		}
 
-			addr1 := scheme + "://" + addr + ":" + port + "/media"
+	// 		addr1 := scheme + "://" + addr + ":" + port + "/media"
 
-			item := apihttp.MediaAlbumItem{
-				// Name: a.Name,
-				Type: typeStr,
-			}
+	// 		item := apihttp.MediaAlbumItem{
+	// 			// Name: a.Name,
+	// 			Type: typeStr,
+	// 		}
 
-			if a.Type == root.AlbumItem_File {
-				item.Thumb = &apihttp.MediaItemInfo{
-					// Width: a.Width,
-					// Height: a.Heigh,
-					URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
-				}
-				item.Detail = &apihttp.MediaItemInfo{
-					// Width: a.Width,
-					// Height: a.Heigh,
-					URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
-				}
-				item.Original = &apihttp.MediaItemInfo{
-					// Width: a.Width,
-					// Height: a.Heigh,
-					URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
-				}
-			}
+	// 		if a.Type == root.AlbumItem_File {
+	// 			item.Thumb = &apihttp.MediaItemInfo{
+	// 				// Width: a.Width,
+	// 				// Height: a.Heigh,
+	// 				URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
+	// 			}
+	// 			item.Detail = &apihttp.MediaItemInfo{
+	// 				// Width: a.Width,
+	// 				// Height: a.Heigh,
+	// 				URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
+	// 			}
+	// 			item.Original = &apihttp.MediaItemInfo{
+	// 				// Width: a.Width,
+	// 				// Height: a.Heigh,
+	// 				URL: fmt.Sprintf("%s/%s", addr1, a.UUID.String()),
+	// 			}
+	// 		}
 
-			if a.Type == root.AlbumItem_Album {
-				item.Album = &apihttp.MediaAlbumInfo{
-					// Name: a.Name,
-					URL: fmt.Sprintf("%s/albums/%s", addr1, a.UUID.String()),
-				}
-			}
+	// 		if a.Type == root.AlbumItem_Album {
+	// 			item.Album = &apihttp.MediaAlbumInfo{
+	// 				// Name: a.Name,
+	// 				URL: fmt.Sprintf("%s/albums/%s", addr1, a.UUID.String()),
+	// 			}
+	// 		}
 
-			resp.Items = append(resp.Items, item)
-		}
+	// 		resp.Items = append(resp.Items, item)
+	// 	}
 
-		err = json.NewEncoder(w).Encode(resp)
-		if err != nil {
-			log.Println(err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-		}
-	}
-	mux.Get("/media/albums/{id}", aHandler)
-	mux.Get("/media/albums", aHandler)
+	// 	err = json.NewEncoder(w).Encode(resp)
+	// 	if err != nil {
+	// 		log.Println(err)
+	// 		http.Error(w, "internal error", http.StatusInternalServerError)
+	// 	}
+	// }
+	mux.Get("/media/albums/{id}", apihttp.NewAlbumHandler(cache, albumAddr, itemAddr))
+	mux.Get("/media/albums", apihttp.NewAlbumHandler(cache, albumAddr, itemAddr))
 
 	log.Println("start server")
 	err = http.ListenAndServe(":"+port, mux)

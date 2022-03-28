@@ -87,6 +87,7 @@ func (c *Cache) Fill(rootDir string) error {
 			baseAlbum.Items = append(baseAlbum.Items, root.MediaAlbumItem{
 				Type: root.AlbumItem_Album,
 				UUID: a.UUID,
+				Name: a.Name,
 			})
 
 			return nil
