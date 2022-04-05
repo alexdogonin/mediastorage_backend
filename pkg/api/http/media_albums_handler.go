@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -12,9 +13,9 @@ import (
 )
 
 type MediaAlbumResponse struct {
-	Cursor string
-	Name   string
-	Items  []MediaAlbumItem
+	Cursor string           `json:"cursor"`
+	Name   string           `json:"name"`
+	Items  []MediaAlbumItem `json:"items"`
 }
 
 func NewAlbumHandler(service Servicer, albumAddr, itemAddr string) http.HandlerFunc {
@@ -34,7 +35,19 @@ func NewAlbumHandler(service Servicer, albumAddr, itemAddr string) http.HandlerF
 			}
 		}
 
-		album, err := service.Album(UUID, cursor)
+		var limit uint
+		if l := query.Get("limit"); len(l) != 0 {
+			l64, err := strconv.ParseUint(l, 10, 32)
+			if err != nil {
+				log.Println(err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			limit = uint(l64)
+		}
+
+		album, cursor, err := service.Album(UUID, limit, cursor)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, "internal", http.StatusInternalServerError)
@@ -42,7 +55,8 @@ func NewAlbumHandler(service Servicer, albumAddr, itemAddr string) http.HandlerF
 		}
 
 		resp := MediaAlbumResponse{
-			Name: album.Name,
+			Name:   album.Name,
+			Cursor: cursor,
 		}
 
 		for _, a := range album.Items {
