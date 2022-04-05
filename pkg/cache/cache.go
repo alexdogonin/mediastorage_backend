@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,15 +18,21 @@ import (
 )
 
 type Cache struct {
-	items    []root.MediaItem
-	itemsIdx map[string]uint
-	itemsMx  sync.RWMutex
+	items         []root.MediaItem
+	itemsIdx      map[string]uint
+	albums        []root.MediaAlbum
+	albumsIdx     map[string]uint
+	rootAlbumUUID uuid.UUID
+
+	mx sync.RWMutex
 }
 
 func NewCache() *Cache {
 	return &Cache{
-		items:    make([]root.MediaItem, 0, 100),
-		itemsIdx: make(map[string]uint),
+		items:     make([]root.MediaItem, 0, 100),
+		itemsIdx:  make(map[string]uint),
+		albums:    make([]root.MediaAlbum, 0, 100),
+		albumsIdx: make(map[string]uint),
 	}
 }
 
@@ -34,26 +41,68 @@ func (c *Cache) Fill(rootDir string) error {
 		return errors.New("cache isn't initialized")
 	}
 
-	c.itemsMx.Lock()
-	defer c.itemsMx.Unlock()
+	stat, err := os.Stat(rootDir)
+	if err != nil {
+		return err
+	}
 
-	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	if !stat.IsDir() {
+		return errors.New("rootDir must be a directory")
+	}
+
+	c.mx.Lock()
+	defer c.mx.Unlock()
+
+	albums := map[string]uuid.UUID{}
+
+	return filepath.WalkDir(rootDir, func(p string, e fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if d.IsDir() {
+		d := filepath.Dir(p)
+
+		if e.IsDir() {
+			a := root.MediaAlbum{
+				Name: e.Name(),
+				UUID: uuid.New(),
+			}
+
+			c.albums = append(c.albums, a)
+			c.albumsIdx[a.UUID.String()] = uint(len(c.albums) - 1)
+			albums[p] = a.UUID
+
+			if p == rootDir {
+				c.rootAlbumUUID = a.UUID
+			}
+
+			baseAlbumUUID := albums[d]
+			baseAlbumIdx, ok := c.albumsIdx[baseAlbumUUID.String()]
+			if !ok {
+				return nil
+				// return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
+			}
+
+			baseAlbum := &c.albums[baseAlbumIdx]
+			baseAlbum.Items = append(baseAlbum.Items, root.MediaAlbumItem{
+				Type: root.AlbumItem_Album,
+				UUID: a.UUID,
+				Name: a.Name,
+			})
+
 			return nil
 		}
 
-		f, err := os.Open(path)
+		f, err := os.Open(p)
 		if err != nil {
 			return err
 		}
 
 		cfg, format, err := image.DecodeConfig(f)
 		if err != nil {
-			return err
+			// return err
+			log.Println(p, " parse error: ", err)
+			return nil
 		}
 
 		uuid := uuid.New()
@@ -62,7 +111,7 @@ func (c *Cache) Fill(rootDir string) error {
 		}
 
 		info := root.MediaItemInfo{
-			Path:   path,
+			Path:   p,
 			Width:  uint(cfg.Width),
 			Height: uint(cfg.Height),
 			Format: format,
@@ -75,7 +124,19 @@ func (c *Cache) Fill(rootDir string) error {
 			Thumb:    info,
 		})
 
-		c.itemsIdx[uuid.String()] = uint(len(c.items))
+		c.itemsIdx[uuid.String()] = uint(len(c.items)) - 1
+		curAlbUUID := albums[d]
+
+		curAlbumIdx, ok := c.albumsIdx[curAlbUUID.String()]
+		if !ok {
+			return errors.New("album " + curAlbUUID.String() + " doesn't exist (" + d + ")")
+		}
+
+		curAlbum := &c.albums[curAlbumIdx]
+		curAlbum.Items = append(curAlbum.Items, root.MediaAlbumItem{
+			Type: root.AlbumItem_File,
+			UUID: uuid,
+		})
 
 		return nil
 	})

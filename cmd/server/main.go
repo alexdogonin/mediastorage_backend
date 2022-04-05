@@ -73,9 +73,14 @@ func main() {
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"*"},
 	}))
-	mux.Get("/media", apihttp.NewMediaList(scheme+"://"+addr+":"+port+"/media", cache))
+
+	itemAddr := scheme + "://" + addr + ":" + port + "/media"
+	albumAddr := itemAddr + "/albums"
+	mux.Get("/media", apihttp.NewMediaList(itemAddr, cache))
 	mux.Get("/media/{id}", apihttp.NewMediaItem(cache))
-	mux.Get("/v2/media", apihttp.NewMediaListV2(scheme+"://"+addr+":"+port+"/media", cache))
+	mux.Get("/v2/media", apihttp.NewMediaListV2(itemAddr, cache))
+	mux.Get("/media/albums/{id}", apihttp.NewAlbumHandler(cache, albumAddr, itemAddr))
+	mux.Get("/media/albums", apihttp.NewAlbumHandler(cache, albumAddr, itemAddr))
 
 	log.Println("start server")
 	err = http.ListenAndServe(":"+port, mux)

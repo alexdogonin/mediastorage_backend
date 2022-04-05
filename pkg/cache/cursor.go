@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 )
 
-type cursor struct {
+type itemsCursor struct {
 	UUID  string `json:"uuid"`
 	Limit uint   `json:"limit"`
 }
 
-func (c *cursor) Parse(cursor string) error {
+func (c *itemsCursor) Parse(cursor string) error {
 	data, err := base64.RawURLEncoding.DecodeString(cursor)
 	if err != nil {
 		return err
@@ -19,7 +19,28 @@ func (c *cursor) Parse(cursor string) error {
 	return json.Unmarshal(data, c)
 }
 
-func (c cursor) String() string {
+func (c itemsCursor) String() string {
+	data, _ := json.Marshal(c)
+
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+type albumsCursor struct {
+	AlbumUUID string `json:"album_uuid"`
+	Offset    uint   `json:"offset"`
+	Limit     uint   `json:"limit"`
+}
+
+func (c *albumsCursor) Parse(cursor string) error {
+	data, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, c)
+}
+
+func (c albumsCursor) String() string {
 	data, _ := json.Marshal(c)
 
 	return base64.RawURLEncoding.EncodeToString(data)

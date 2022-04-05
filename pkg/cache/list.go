@@ -7,10 +7,10 @@ import (
 )
 
 func (c *Cache) List(cursorStr string, limit uint) ([]root.MediaItem, string, error) {
-	c.itemsMx.RLock()
-	defer c.itemsMx.RUnlock()
+	c.mx.RLock()
+	defer c.mx.RUnlock()
 
-	cursor := cursor{
+	cursor := itemsCursor{
 		Limit: limit,
 	}
 
