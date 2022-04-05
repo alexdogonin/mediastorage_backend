@@ -85,6 +85,7 @@ func NewAlbumHandler(service Servicer, albumAddr, itemAddr string) http.HandlerF
 			resp.Items = append(resp.Items, item)
 		}
 
+		w.Header().Set("content-type", "application/json")
 		err = json.NewEncoder(w).Encode(resp)
 		if err != nil {
 			log.Println(err)

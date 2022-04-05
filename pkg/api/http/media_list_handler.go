@@ -102,6 +102,7 @@ func NewMediaListV2(addr string, s Servicer) http.HandlerFunc {
 			})
 		}
 
+		rw.Header().Set("content-type", "application/json")
 		err = json.NewEncoder(rw).Encode(resp)
 		if err != nil {
 			log.Println(err)
@@ -114,5 +115,3 @@ type MediaListResponse struct {
 	Media  []MediaItem `json:"media"`
 	Cursor string      `json:"cursor"`
 }
-
-
