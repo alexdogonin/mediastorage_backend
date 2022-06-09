@@ -20,6 +20,18 @@ func NewStorage(s *badger.DB) Storage {
 	return Storage{s}
 }
 
+// type Repository interface {
+// 	Item(uuid.UUID) (root.MediaItem, error)
+// 	List(cursor string, limit uint) ([]root.MediaItem, string, error)
+// 	Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAlbum, string, error)
+
+// 	UpsertItem(root.MediaItem) error
+// 	RemoveItem(uuid.UUID) error
+
+// 	UpsertAlbum(root.MediaAlbum) error
+// 	AddItemToAlbum(albumUUID, itemUUID uuid.UUID) error
+// }
+
 func (s *Storage) Item(uuid uuid.UUID) (root.MediaItem, error) {
 	var mediaItem root.MediaItem
 
@@ -63,21 +75,16 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 		defer it.Close()
 
 		for it.Seek([]byte("items:" + curs.UUID)); it.Valid(); it.Next() {
+			var item root.MediaItem
+
 			err := it.Item().Value(func(val []byte) error {
-				var item root.MediaItem
-
-				err := json.Unmarshal(val, &item)
-				if err != nil {
-					return err
-				}
-
-				mediaItems = append(mediaItems, item)
-				return nil
+				return json.Unmarshal(val, &item)
 			})
-
 			if err != nil {
 				return err
 			}
+
+			mediaItems = append(mediaItems, item)
 
 			if len(mediaItems) >= int(limit) {
 				curs.UUID = mediaItems[len(mediaItems)-1].UUID.String()
@@ -96,7 +103,66 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 }
 
 func (s *Storage) Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAlbum, string, error) {
-	panic("not implemented")
+	curs := albumsCursor{
+		Limit: limit,
+		UUID:  UUID.String(),
+	}
+	if limit == 0 {
+		curs.Limit = defaultLimit
+	}
+
+	if len(cursor) != 0 {
+		err := curs.Parse(cursor)
+		if err != nil {
+			return root.MediaAlbum{}, "", err
+		}
+	}
+
+	var album root.MediaAlbum //TODO create an inner type
+	err := s.s.View(func(txn *badger.Txn) error {
+		albItem, err := txn.Get([]byte("albums:" + curs.UUID))
+		if err != nil {
+			return err
+		}
+
+		err = albItem.Value(func(val []byte) error {
+			return json.Unmarshal(val, &album)
+		})
+		if err != nil {
+			return err
+		}
+
+		opt := badger.IteratorOptions{
+			Prefix: []byte("albums:" + curs.UUID + ":items:"),
+		}
+		it := txn.NewIterator(opt)
+		defer it.Close()
+
+		var item root.MediaAlbumItem
+		for it.Seek([]byte("albums:" + curs.UUID + ":items:")); it.Valid(); it.Next() {
+			err = it.Item().Value(func(val []byte) error {
+				return json.Unmarshal(val, &item)
+			})
+
+			if err != nil {
+				return err
+			}
+
+			album.Items = append(album.Items, item)
+
+			if len(album.Items) == int(curs.Limit) {
+				curs.ItemUUID = item.UUID.String()
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return root.MediaAlbum{}, "", err
+	}
+
+	return album, curs.String(), nil
 }
 
 func (s *Storage) UpsertItem(item root.MediaItem) error {
