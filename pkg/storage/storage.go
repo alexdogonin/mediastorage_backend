@@ -148,7 +148,7 @@ func (s *Storage) Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAl
 				return err
 			}
 
-			album.Items = append(album.Items, item)
+			album.Items = append(album.Items, item) //TODO preinit slice
 
 			if len(album.Items) == int(curs.Limit) {
 				curs.ItemUUID = item.UUID.String()
@@ -176,8 +176,35 @@ func (s *Storage) UpsertItem(item root.MediaItem) error {
 	})
 }
 
-func (s *Storage) UpsertAlbum(root.MediaAlbum) error {
-	panic("not implemented")
+func (s *Storage) UpsertAlbum(album root.MediaAlbum) error {
+	return s.s.Update(func(txn *badger.Txn) error {
+		items := album.Items
+		album.Items = nil
+
+		data, err := json.Marshal(album)
+		if err != nil {
+			return err
+		}
+
+		err = txn.Set([]byte("albums:"+album.UUID.String()), data)
+		if err != nil {
+			return err
+		}
+
+		for _, i := range items {
+			data, err = json.Marshal(i)
+			if err != nil {
+				return err
+			}
+
+			err = txn.Set([]byte("albums:"+album.UUID.String()+":items:"+i.UUID.String()), data)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 func (s *Storage) AddItemToAlbum(albumUUID, itemUUID uuid.UUID) error {
