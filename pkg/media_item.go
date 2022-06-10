@@ -1,12 +1,17 @@
 package root
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type MediaItem struct {
-	UUID     uuid.UUID
-	Thumb    MediaItemInfo
-	Detail   MediaItemInfo
-	Original MediaItemInfo
+	UUID      uuid.UUID
+	Thumb     MediaItemInfo
+	Detail    MediaItemInfo
+	Original  MediaItemInfo
+	UpdatedAt time.Time
 }
 
 type MediaItemInfo struct {

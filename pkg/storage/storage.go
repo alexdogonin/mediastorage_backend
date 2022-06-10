@@ -20,20 +20,9 @@ func NewStorage(s *badger.DB) Storage {
 	return Storage{s}
 }
 
-// type Repository interface {
-// 	Item(uuid.UUID) (root.MediaItem, error)
-// 	List(cursor string, limit uint) ([]root.MediaItem, string, error)
-// 	Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAlbum, string, error)
-
-// 	UpsertItem(root.MediaItem) error
-// 	RemoveItem(uuid.UUID) error
-
-// 	UpsertAlbum(root.MediaAlbum) error
-// 	AddItemToAlbum(albumUUID, itemUUID uuid.UUID) error
-// }
-
 func (s *Storage) Item(uuid uuid.UUID) (root.MediaItem, error) {
 	var mediaItem root.MediaItem
+	var ok bool
 
 	err := s.s.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("items:" + uuid.String()))
@@ -47,6 +36,36 @@ func (s *Storage) Item(uuid uuid.UUID) (root.MediaItem, error) {
 	})
 
 	return mediaItem, err
+}
+
+func (s *Storage) ItemByPath(p string) (uuid.UUID, bool, error) {
+	var UUID uuid.UUID
+	var ok bool
+
+	err := s.s.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("index:items:by_path:" + p))
+		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return nil
+			}
+			return err
+		}
+
+		err = item.Value(func(val []byte) error {
+			copy(UUID[:], val)
+
+			return nil
+		})
+
+		if err != nil {
+			return err
+		}
+
+		ok = true
+		return nil
+	})
+
+	return UUID, ok, err
 }
 
 func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, error) {
@@ -172,7 +191,12 @@ func (s *Storage) UpsertItem(item root.MediaItem) error {
 			return err
 		}
 
-		return txn.Set([]byte("items:"+item.UUID.String()), data)
+		err = txn.Set([]byte("items:"+item.UUID.String()), data)
+		if err != nil {
+			return err
+		}
+
+		return txn.Set([]byte("index:items:by_path:"+item.Original.Path), item.UUID)
 	})
 }
 
@@ -207,6 +231,13 @@ func (s *Storage) UpsertAlbum(album root.MediaAlbum) error {
 	})
 }
 
-func (s *Storage) AddItemToAlbum(albumUUID, itemUUID uuid.UUID) error {
-	panic("not implemented")
+func (s *Storage) AddItemToAlbum(albumUUID uuid.UUID, albumItem root.MediaAlbumItem) error {
+	return s.s.Update(func(txn *badger.Txn) error {
+		data, err := json.Marshal(albumItem)
+		if err != nil {
+			return err
+		}
+
+		return txn.Set([]byte("albums:"+albumUUID.String()+":items:"+albumItem.UUID.String()), data)
+	})
 }

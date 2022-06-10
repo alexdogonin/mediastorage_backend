@@ -76,7 +76,11 @@ func (s *Service) addAlbum(UUID uuid.UUID, name string, baseAlbum uuid.UUID) err
 		return err
 	}
 
-	return s.repo.AddItemToAlbum(baseAlbum, a.UUID)
+	return s.repo.AddItemToAlbum(baseAlbum, root.MediaAlbumItem{
+		Type: root.AlbumItem_Album,
+		UUID: UUID,
+		Name: name,
+	})
 }
 
 func (s *Service) addItem(filePath string, baseAlbum uuid.UUID) error {
@@ -133,10 +137,10 @@ func (s *Service) Sync(rootDir string) error {
 		return err
 	}
 
-	return s.checkDirectoryData(rootDir)
+	return s.refreshDirectoryData(rootDir)
 }
 
-func (s *Service) checkDirectoryData(rootDir string) error {
+func (s *Service) refreshDirectoryData(rootDir string) error {
 	stat, err := os.Stat(rootDir)
 	if err != nil {
 		return err
@@ -154,18 +158,26 @@ func (s *Service) checkDirectoryData(rootDir string) error {
 			return err
 		}
 
-		f, err := s.repo.File(p)
+		mediaItemUUID, ok, err := s.repo.ItemByPath(p)
 		if err != nil {
 			return err
 		}
 
-		info, err := e.Info()
-		if err != nil {
-			return err
-		}
+		if ok {
+			//TODO check if it is a dir
+			item, err := s.repo.Item(mediaItemUUID)
+			if err != nil {
+				return err
+			}
 
-		if info.ModTime().Equal(f.UpdatedAt) {
-			return nil
+			info, err := e.Info()
+			if err != nil {
+				return err
+			}
+
+			if info.ModTime().Equal(item.UpdatedAt) {
+				return nil
+			}
 		}
 
 		d := filepath.Dir(p)
@@ -191,7 +203,7 @@ func (s *Service) checkCachedData() error {
 
 	for _, p := range files {
 		info, err := os.Stat(p.Path)
-		
+
 		if err != nil {
 			if err == os.ErrNotExist {
 				err = s.repo.RemoveItem(p.UUID)
