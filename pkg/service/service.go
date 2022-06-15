@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/google/uuid"
@@ -186,13 +187,60 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 		return errors.New("rootDir must be a directory")
 	}
 
+	_, ok, err := s.repo.AlbumByPath(rootDir)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		err = s.repo.UpsertAlbum(root.MediaAlbum{
+			UUID: uuid.New(),
+			Name: path.Base(rootDir),
+			Path: rootDir,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	return filepath.WalkDir(rootDir, func(p string, e fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if e.IsDir() {
-			return nil
+			_, ok, err := s.repo.AlbumByPath(p)
+			if err != nil {
+				return err
+			}
+			if ok {
+				return nil
+			}
+
+			d := filepath.Dir(p)
+			baseAlbum, ok, err := s.repo.AlbumByPath(d)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return errors.New("album " + d + " is not found")
+			}
+
+			album := root.MediaAlbum{
+				UUID: uuid.New(),
+				Name: e.Name(),
+				Path: p,
+			}
+			err = s.repo.UpsertAlbum(album)
+			if err != nil {
+				return err
+			}
+
+			return s.repo.AddItemToAlbum(baseAlbum, root.MediaAlbumItem{
+				Type: root.AlbumItem_Album,
+				UUID: album.UUID,
+				Name: e.Name(),
+			})
 		}
 
 		mediaItemUUID, ok, err := s.repo.ItemByPath(p)
@@ -201,7 +249,7 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 		}
 
 		if ok {
-			item, err := s.repo.Album(mediaItemUUID)
+			item, err := s.repo.Item(mediaItemUUID)
 			if err != nil {
 				return err
 			}
@@ -234,8 +282,6 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 				return err
 			}
 		}
-
-		// TODO inner albums??
 
 		item, err := newItemFromFile(p)
 		if err != nil {
