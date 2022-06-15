@@ -29,6 +29,7 @@ func (t MediaAlbumItemType) String() string {
 type MediaAlbum struct {
 	UUID  uuid.UUID
 	Name  string
+	Path  string
 	Items []MediaAlbumItem
 }
 

@@ -120,6 +120,42 @@ func (s *Service) addItem(filePath string, baseAlbum uuid.UUID) error {
 	return nil
 }
 
+func newItemFromFile(filePath string) (root.MediaItem, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return root.MediaItem{}, err
+	}
+
+	cfg, format, err := image.DecodeConfig(f)
+	if err != nil {
+		return root.MediaItem{}, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return root.MediaItem{}, err
+	}
+
+	uuid := uuid.New()
+
+	info := root.MediaItemInfo{
+		Path:   filePath,
+		Width:  uint(cfg.Width),
+		Height: uint(cfg.Height),
+		Format: format,
+	}
+
+	item := root.MediaItem{
+		UUID:      uuid,
+		Original:  info,
+		Detail:    info,
+		Thumb:     info,
+		UpdatedAt: stat.ModTime(),
+	}
+
+	return item, nil
+}
+
 // TODO необходимо добавить новые файла и альбомы, удалить удалённые
 // идентифицировать файл можно по пути к файлу
 // 1.
@@ -150,12 +186,13 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 		return errors.New("rootDir must be a directory")
 	}
 
-	//TODO make stack of directories entry
-	albums := map[string]uuid.UUID{}
-
 	return filepath.WalkDir(rootDir, func(p string, e fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if e.IsDir() {
+			return nil
 		}
 
 		mediaItemUUID, ok, err := s.repo.ItemByPath(p)
@@ -164,8 +201,7 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 		}
 
 		if ok {
-			//TODO check if it is a dir
-			item, err := s.repo.Item(mediaItemUUID)
+			item, err := s.repo.Album(mediaItemUUID)
 			if err != nil {
 				return err
 			}
@@ -181,17 +217,40 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 		}
 
 		d := filepath.Dir(p)
-		baseAlbumUUID := albums[d]
 
-		if e.IsDir() {
-			UUID := uuid.New()
+		baseAlbumUUID, ok, err := s.repo.AlbumByPath(d)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			baseAlbumUUID = uuid.New()
+			err = s.repo.UpsertAlbum(root.MediaAlbum{
+				UUID: baseAlbumUUID,
+				Name: e.Name(),
+				Path: d,
+			})
 
-			albums[p] = UUID
-
-			return s.addAlbum(UUID, e.Name(), baseAlbumUUID)
+			if err != nil {
+				return err
+			}
 		}
 
-		return s.addItem(p, baseAlbumUUID)
+		// TODO inner albums??
+
+		item, err := newItemFromFile(p)
+		if err != nil {
+			return err
+		}
+
+		err = s.repo.UpsertItem(item)
+		if err != nil {
+			return err
+		}
+
+		return s.repo.AddItemToAlbum(baseAlbumUUID, root.MediaAlbumItem{
+			Type: root.AlbumItem_File,
+			UUID: item.UUID,
+		})
 	})
 }
 

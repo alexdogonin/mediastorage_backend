@@ -22,7 +22,6 @@ func NewStorage(s *badger.DB) Storage {
 
 func (s *Storage) Item(uuid uuid.UUID) (root.MediaItem, error) {
 	var mediaItem root.MediaItem
-	var ok bool
 
 	err := s.s.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("items:" + uuid.String()))
@@ -196,7 +195,7 @@ func (s *Storage) UpsertItem(item root.MediaItem) error {
 			return err
 		}
 
-		return txn.Set([]byte("index:items:by_path:"+item.Original.Path), item.UUID)
+		return txn.Set([]byte("index:items:by_path:"+item.Original.Path), item.UUID[:])
 	})
 }
 
@@ -227,8 +226,38 @@ func (s *Storage) UpsertAlbum(album root.MediaAlbum) error {
 			}
 		}
 
+		return txn.Set([]byte("index:albums:by_path:"+album.Path), album.UUID[:])
+	})
+}
+
+func (s *Storage) AlbumByPath(p string) (uuid.UUID, bool, error) {
+	var UUID uuid.UUID
+	var ok bool
+
+	err := s.s.View(func(txn *badger.Txn) error {
+		v, err := txn.Get([]byte("index:albums:by_path:" + p))
+		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return nil
+			}
+
+			return err
+		}
+
+		err = v.Value(func(val []byte) error {
+			copy(UUID[:], val)
+
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		ok = true
 		return nil
 	})
+
+	return UUID, ok, err
 }
 
 func (s *Storage) AddItemToAlbum(albumUUID uuid.UUID, albumItem root.MediaAlbumItem) error {

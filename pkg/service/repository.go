@@ -13,8 +13,9 @@ type Repository interface {
 	// TODO create separated methods Album and AlbumItems
 	// method Album returns description of an album, AlbumItems returns album items
 	Album(UUID uuid.UUID, itemsLimit uint, cursor string) (root.MediaAlbum, string, error)
+	AlbumByPath(p string) (uuid.UUID, bool, error)
 
-	ItemAlbum(itemUUID uuid.UUID, itemsLimit uint, cursor string) (root.MediaAlbum, string, error)
+	// ItemAlbum(itemUUID uuid.UUID, itemsLimit uint, cursor string) (root.MediaAlbum, string, error)
 
 	UpsertItem(root.MediaItem) error
 	// RemoveItem(uuid.UUID) error
