@@ -13,6 +13,8 @@ import (
 	root "github.com/mediastorage_backend/pkg"
 )
 
+var rootAlbumUUID = uuid.New()
+
 type Service struct {
 	repo Repository
 }
@@ -194,7 +196,7 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 
 	if !ok {
 		err = s.repo.UpsertAlbum(root.MediaAlbum{
-			UUID: uuid.New(),
+			UUID: rootAlbumUUID,
 			Name: path.Base(rootDir),
 			Path: rootDir,
 		})
@@ -301,29 +303,66 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 }
 
 func (s *Service) checkCachedData() error {
-	files, err := s.repo.ListFiles()
-	if err != nil {
-		return err
-	}
+	var err error
+	var cursor string
+	var media []root.MediaItem
 
-	for _, p := range files {
-		info, err := os.Stat(p.Path)
-
+	for {
+		media, cursor, err = s.repo.List(cursor, 2000)
 		if err != nil {
-			if err == os.ErrNotExist {
-				err = s.repo.RemoveItem(p.UUID)
-				if err != nil {
-					return err
-				}
-
-			}
-
 			return err
 		}
 
-		if !info.ModTime().Equal(p.UpdatedAt) {
-			// update detail and thumb
+		if len(media) == 0 {
+			break
 		}
+
+		for _, item := range media {
+			_, err := os.Stat(item.Original.Path)
+
+			if err == nil {
+				continue
+			}
+
+			if err != os.ErrNotExist {
+				return err
+			}
+
+			err = s.repo.RemoveItem(p.UUID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	var album root.MediaAlbum
+	cursor = ""
+	UUID := rootAlbumUUID
+
+	for {
+		album, cursor, err = s.repo.Album(UUID, 2000, cursor)
+		if err != nil {
+			return err
+		}
+
+		_, err := os.Stat(album.Path)
+		if err == os.ErrNotExist {
+			err = s.repo.RemoveAlbum()
+			if err != nil {
+				return err
+			}
+
+			nextAlbum()
+			continue
+		}
+		if err != nil {
+			return err
+		}
+
+		for _, a := range album.Items {
+			
+		}
+
 	}
 
 	return nil
