@@ -70,7 +70,7 @@ func main() {
 
 	log.Println("cache filling")
 	// err = cache.Fill(rootPath)
-	err = svc.Fill(rootPath)
+	err = svc.Sync(rootPath)
 	if err != nil {
 		log.Fatal(err)
 	}

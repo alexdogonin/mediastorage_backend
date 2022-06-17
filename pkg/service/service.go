@@ -13,7 +13,7 @@ import (
 	root "github.com/mediastorage_backend/pkg"
 )
 
-var rootAlbumUUID = uuid.New()
+var rootAlbumUUID = uuid.Nil
 
 type Service struct {
 	repo Repository
@@ -172,11 +172,11 @@ func newItemFromFile(filePath string) (root.MediaItem, error) {
 // 2.
 // пробежаться по кэшу. аналогично пункту 1, но теперь смотрим наличие и совпадение файла на жестком диске
 func (s *Service) Sync(rootDir string) error {
-	if err := s.checkCachedData(); err != nil {
+	if err := s.refreshDirectoryData(rootDir); err != nil {
 		return err
 	}
 
-	return s.refreshDirectoryData(rootDir)
+	return s.refreshCachedData()
 }
 
 func (s *Service) refreshDirectoryData(rootDir string) error {
@@ -302,13 +302,15 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 	})
 }
 
-func (s *Service) checkCachedData() error {
+func (s *Service) refreshCachedData() error {
+	const itemsPerPage = 2000
+
 	var err error
 	var cursor string
 	var media []root.MediaItem
 
 	for {
-		media, cursor, err = s.repo.List(cursor, 2000)
+		media, cursor, err = s.repo.List(cursor, itemsPerPage)
 		if err != nil {
 			return err
 		}
@@ -324,46 +326,98 @@ func (s *Service) checkCachedData() error {
 				continue
 			}
 
-			if err != os.ErrNotExist {
+			if !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
 
-			err = s.repo.RemoveItem(p.UUID)
+			err = s.repo.RemoveItem(item.UUID)
 			if err != nil {
 				return err
 			}
+		}
+
+		if len(media) < itemsPerPage {
+			break
 		}
 	}
 
-	var album root.MediaAlbum
-	cursor = ""
-	UUID := rootAlbumUUID
+	return s.refreshAlbum(rootAlbumUUID)
+}
 
-	for {
-		album, cursor, err = s.repo.Album(UUID, 2000, cursor)
+func (s *Service) refreshAlbum(UUID uuid.UUID) error {
+	const itemsPerPage = 2000
+
+	var album root.MediaAlbum
+	var cursor string
+	var err error
+
+	for firstIter := true; ; firstIter = false {
+		album, cursor, err = s.repo.Album(UUID, itemsPerPage, cursor)
 		if err != nil {
 			return err
 		}
 
-		_, err := os.Stat(album.Path)
-		if err == os.ErrNotExist {
-			err = s.repo.RemoveAlbum()
+		if firstIter {
+			if len(album.Items) == 0 {
+				return s.repo.RemoveAlbum(UUID)
+			}
+
+			_, err := os.Stat(album.Path)
+			if err == os.ErrNotExist {
+				return s.removeAlbumCascade(UUID)
+			}
 			if err != nil {
 				return err
 			}
-
-			nextAlbum()
-			continue
-		}
-		if err != nil {
-			return err
 		}
 
-		for _, a := range album.Items {
-			
+		for _, item := range album.Items {
+			if item.Type != root.AlbumItem_Album {
+				continue
+			}
+
+			err = s.refreshAlbum(item.UUID)
+			if err != nil {
+				return err
+			}
 		}
 
+		if len(album.Items) < itemsPerPage {
+			break
+		}
 	}
 
 	return nil
+}
+
+func (s *Service) removeAlbumCascade(UUID uuid.UUID) error {
+	const itemsPerPage = 2000
+
+	var album root.MediaAlbum
+	var cursor string
+	var err error
+
+	for {
+		album, cursor, err = s.repo.Album(UUID, itemsPerPage, cursor)
+		if err != nil {
+			return err
+		}
+
+		for _, item := range album.Items {
+			if item.Type != root.AlbumItem_Album {
+				continue
+			}
+
+			err = s.removeAlbumCascade(item.UUID)
+			if err != nil {
+				return err
+			}
+		}
+
+		if len(album.Items) < itemsPerPage {
+			break
+		}
+	}
+
+	return s.repo.RemoveAlbum(UUID)
 }
