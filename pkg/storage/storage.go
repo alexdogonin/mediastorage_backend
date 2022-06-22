@@ -92,7 +92,12 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		for it.Seek([]byte("items:" + curs.UUID)); it.Valid(); it.Next() {
+		it.Seek([]byte("items:" + curs.UUID))
+		if len(curs.UUID) != 0 {
+			it.Next()
+		}
+
+		for ; it.Valid(); it.Next() {
 			var item root.MediaItem
 
 			err := it.Item().Value(func(val []byte) error {
@@ -103,9 +108,9 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 			}
 
 			mediaItems = append(mediaItems, item)
+			curs.UUID = item.UUID.String()
 
 			if len(mediaItems) >= int(limit) {
-				curs.UUID = mediaItems[len(mediaItems)-1].UUID.String()
 				break
 			}
 		}
