@@ -302,6 +302,11 @@ func (s *Storage) RemoveItem(UUID uuid.UUID) error {
 		if err != nil {
 			return err
 		}
+		
+		err = txn.Delete([]byte("index:items:by_path:" + UUID.String()))
+		if err != nil {
+			return err
+		}
 
 		err = txn.Delete([]byte("albums:" + albumUUID.String() + ":items:" + UUID.String()))
 		if err != nil {
@@ -344,6 +349,31 @@ func (s *Storage) RemoveAlbum(UUID uuid.UUID) error {
 		}
 
 		err = txn.Delete([]byte("index:albums:by_path:" + a.Path))
+		if err != nil {
+			return err
+		}
+
+		item, err = txn.Get([]byte("index:albums:by_item:" + UUID.String()))
+		if err != nil {
+			return err
+		}
+
+		var baseAlbumUUID uuid.UUID
+		err = item.Value(func(val []byte) error {
+			copy(baseAlbumUUID[:], val)
+
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		err = txn.Delete([]byte("index:albums:by_item:" + UUID.String()))
+		if err != nil {
+			return err
+		}
+
+		err = txn.Delete([]byte("albums:" + baseAlbumUUID.String() + ":items:" + UUID.String()))
 		if err != nil {
 			return err
 		}
