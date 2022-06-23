@@ -66,10 +66,7 @@ func main() {
 
 	svc := service.New(&strg)
 
-	// cache := cache.NewCache()
-
 	log.Println("cache filling")
-	// err = cache.Fill(rootPath)
 	err = svc.Sync(rootPath)
 	if err != nil {
 		log.Fatal(err)
