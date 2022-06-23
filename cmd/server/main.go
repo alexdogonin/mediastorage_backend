@@ -9,8 +9,14 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/dgraph-io/badger"
 	apihttp "github.com/mediastorage_backend/pkg/api/http"
-	"github.com/mediastorage_backend/pkg/cache"
+	"github.com/mediastorage_backend/pkg/service"
+	"github.com/mediastorage_backend/pkg/storage"
+
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -50,10 +56,18 @@ func main() {
 	fmt.Println("cur dir: " + os.Getenv("PWD"))
 	fmt.Println("root path: " + rootPath)
 
-	cache := cache.NewCache()
+	b, err := badger.Open(badger.DefaultOptions("/tmp/mediaserver"))
+	if err != nil {
+		log.Fatal("opening badger error, ", err)
+	}
+	defer b.Close()
+
+	strg := storage.NewStorage(b)
+
+	svc := service.New(&strg)
 
 	log.Println("cache filling")
-	err := cache.Fill(rootPath)
+	err = svc.Sync(rootPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,7 +76,7 @@ func main() {
 
 	mux.Use(func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("%s %s", r.Method, r.URL.Path)
+			log.Printf("%s %s", r.Method, r.URL.String())
 
 			h.ServeHTTP(w, r)
 		})
@@ -76,11 +90,11 @@ func main() {
 
 	itemAddr := scheme + "://" + addr + ":" + port + "/media"
 	albumAddr := itemAddr + "/albums"
-	mux.Get("/media", apihttp.NewMediaList(itemAddr, cache))
-	mux.Get("/media/{id}", apihttp.NewMediaItem(cache))
-	mux.Get("/v2/media", apihttp.NewMediaListV2(itemAddr, cache))
-	mux.Get("/media/albums/{id}", apihttp.NewAlbumHandler(cache, albumAddr, itemAddr))
-	mux.Get("/media/albums", apihttp.NewAlbumHandler(cache, albumAddr, itemAddr))
+	mux.Get("/media", apihttp.NewMediaList(itemAddr, &svc))
+	mux.Get("/media/{id}", apihttp.NewMediaItem(&svc))
+	mux.Get("/v2/media", apihttp.NewMediaListV2(itemAddr, &svc))
+	mux.Get("/media/albums/{id}", apihttp.NewAlbumHandler(&svc, albumAddr, itemAddr))
+	mux.Get("/media/albums", apihttp.NewAlbumHandler(&svc, albumAddr, itemAddr))
 
 	log.Println("start server")
 	err = http.ListenAndServe(":"+port, mux)

@@ -27,13 +27,14 @@ func (t MediaAlbumItemType) String() string {
 }
 
 type MediaAlbum struct {
-	UUID  uuid.UUID
-	Name  string
-	Items []MediaAlbumItem
+	UUID  uuid.UUID `json:"uuid"`
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	Items []MediaAlbumItem `json:"items"`
 }
 
 type MediaAlbumItem struct {
-	Type MediaAlbumItemType
-	UUID uuid.UUID
-	Name string
+	Type MediaAlbumItemType `json:"type"`
+	UUID uuid.UUID `json:"uuid"`
+	Name string `json:"name"`
 }

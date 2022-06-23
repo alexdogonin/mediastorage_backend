@@ -1,4 +1,4 @@
-package cache
+package storage
 
 import (
 	"encoding/base64"
@@ -26,9 +26,9 @@ func (c itemsCursor) String() string {
 }
 
 type albumsCursor struct {
-	AlbumUUID string `json:"album_uuid"`
-	Offset    uint   `json:"offset"`
-	Limit     uint   `json:"limit"`
+	UUID     string `json:"uuid"`
+	ItemUUID string `json:"item_uuid"`
+	Limit    uint   `json:"limit"`
 }
 
 func (c *albumsCursor) Parse(cursor string) error {
