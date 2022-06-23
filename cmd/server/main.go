@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/dgraph-io/badger"
 	apihttp "github.com/mediastorage_backend/pkg/api/http"
@@ -67,10 +68,12 @@ func main() {
 	svc := service.New(&strg)
 
 	log.Println("cache filling")
+	tm := time.Now()
 	err = svc.Sync(rootPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("cache is ok. elapsed: ", time.Since(tm))
 
 	mux := chi.NewMux()
 

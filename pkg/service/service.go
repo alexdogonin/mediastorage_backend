@@ -23,39 +23,6 @@ func New(repo Repository) Service {
 	return Service{repo}
 }
 
-func (s *Service) Fill(rootDir string) error {
-	stat, err := os.Stat(rootDir)
-	if err != nil {
-		return err
-	}
-
-	if !stat.IsDir() {
-		return errors.New("rootDir must be a directory")
-	}
-
-	//TODO make stack of directories entry
-	albums := map[string]uuid.UUID{}
-
-	return filepath.WalkDir(rootDir, func(p string, e fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		d := filepath.Dir(p)
-		baseAlbumUUID := albums[d]
-
-		if e.IsDir() {
-			UUID := uuid.New()
-
-			albums[p] = UUID
-
-			return s.addAlbum(UUID, e.Name(), baseAlbumUUID)
-		}
-
-		return s.addItem(p, baseAlbumUUID)
-	})
-}
-
 func (s *Service) Item(uuid uuid.UUID) (root.MediaItem, error) {
 	return s.repo.Item(uuid)
 }
@@ -68,66 +35,12 @@ func (s *Service) Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAl
 	return s.repo.Album(UUID, limit, cursor)
 }
 
-func (s *Service) addAlbum(UUID uuid.UUID, name string, baseAlbum uuid.UUID) error {
-	a := root.MediaAlbum{
-		Name: name,
-		UUID: UUID,
-	}
-
-	err := s.repo.UpsertAlbum(a)
-	if err != nil {
-		return err
-	}
-
-	return s.repo.AddItemToAlbum(baseAlbum, root.MediaAlbumItem{
-		Type: root.AlbumItem_Album,
-		UUID: UUID,
-		Name: name,
-	})
-}
-
-func (s *Service) addItem(filePath string, baseAlbum uuid.UUID) error {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-
-	cfg, format, err := image.DecodeConfig(f)
-	if err != nil {
-		log.Println(filePath, " parse error: ", err)
-		return nil
-	}
-
-	uuid := uuid.New()
-
-	info := root.MediaItemInfo{
-		Path:   filePath,
-		Width:  uint(cfg.Width),
-		Height: uint(cfg.Height),
-		Format: format,
-	}
-
-	item := root.MediaItem{
-		UUID:     uuid,
-		Original: info,
-		Detail:   info,
-		Thumb:    info,
-	}
-
-	err = s.repo.UpsertItem(item)
-	if err != nil {
-		return err
-	}
-
-	// return s.repo.AddItemToAlbum(baseAlbum, item.UUID)
-	return nil
-}
-
 func newItemFromFile(filePath string) (root.MediaItem, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return root.MediaItem{}, err
 	}
+	defer f.Close()
 
 	cfg, format, err := image.DecodeConfig(f)
 	if err != nil {
@@ -209,6 +122,8 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 		if err != nil {
 			return err
 		}
+
+		log.Println("refresh dir data: ", p)
 
 		if e.IsDir() {
 			_, ok, err := s.repo.AlbumByPath(p)
@@ -320,6 +235,7 @@ func (s *Service) refreshCachedData() error {
 		}
 
 		for _, item := range media {
+			log.Println("refresh cached data: ", item.Original.Path)
 			_, err := os.Stat(item.Original.Path)
 
 			if err == nil {
@@ -356,6 +272,8 @@ func (s *Service) refreshAlbum(UUID uuid.UUID) error {
 		if err != nil {
 			return err
 		}
+
+		log.Println("refresh album: ", album.Path)
 
 		if firstIter {
 			if len(album.Items) == 0 {

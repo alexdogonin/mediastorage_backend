@@ -161,8 +161,13 @@ func (s *Storage) Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAl
 		it := txn.NewIterator(opt)
 		defer it.Close()
 
-		var item root.MediaAlbumItem
-		for it.Seek([]byte("albums:" + curs.UUID + ":items:")); it.Valid(); it.Next() {
+		it.Seek([]byte("albums:" + curs.UUID + ":items:" + curs.ItemUUID))
+		if len(curs.ItemUUID) != 0 {
+			it.Next()
+		}
+
+		for ; it.Valid(); it.Next() {
+			var item root.MediaAlbumItem
 			err = it.Item().Value(func(val []byte) error {
 				return json.Unmarshal(val, &item)
 			})
@@ -172,9 +177,10 @@ func (s *Storage) Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAl
 			}
 
 			album.Items = append(album.Items, item) //TODO preinit slice
+			curs.ItemUUID = item.UUID.String()
 
 			if len(album.Items) == int(curs.Limit) {
-				curs.ItemUUID = item.UUID.String()
+				break
 			}
 		}
 
@@ -302,7 +308,7 @@ func (s *Storage) RemoveItem(UUID uuid.UUID) error {
 		if err != nil {
 			return err
 		}
-		
+
 		err = txn.Delete([]byte("index:items:by_path:" + UUID.String()))
 		if err != nil {
 			return err
