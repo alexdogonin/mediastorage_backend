@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/dgraph-io/badger"
 	"github.com/google/uuid"
@@ -86,29 +87,48 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 
 	err := s.s.View(func(txn *badger.Txn) error {
 		opts := badger.IteratorOptions{
-			Prefix: []byte("items:"),
+			Prefix:  []byte("index:items:by_date_desc:"),
+			Reverse: true,
 		}
 
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		it.Seek([]byte("items:" + curs.UUID))
-		if len(curs.UUID) != 0 {
-			it.Next()
-		}
+		// keySuffix := curs.UUID
+		// if len(keySuffix) == 0 {
+		// 	keySuffix = "z"
+		// }
 
-		for ; it.Valid(); it.Next() {
-			var item root.MediaItem
+		// it.Seek([]byte("index:items:by_date_desc:" + keySuffix))
+		// if len(curs.UUID) != 0 {
+		// 	it.Next()
+		// }
+
+		for it.Seek([]byte("index:items:by_date_desc:Z")); it.Valid(); it.Next() {
+			var item *badger.Item
 
 			err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &item)
+				var UUID uuid.UUID
+				copy(UUID[:], val)
+
+				var err error
+				item, err = txn.Get([]byte("items:" + UUID.String()))
+				return err
 			})
 			if err != nil {
 				return err
 			}
 
-			mediaItems = append(mediaItems, item)
-			curs.UUID = item.UUID.String()
+			var mediaItem root.MediaItem
+			err = item.Value(func(val []byte) error {
+				return json.Unmarshal(val, &mediaItem)
+			})
+			if err != nil {
+				return err
+			}
+
+			mediaItems = append(mediaItems, mediaItem)
+			curs.UUID = string(it.Item().Key())
 
 			if len(mediaItems) >= int(limit) {
 				break
@@ -202,6 +222,12 @@ func (s *Storage) UpsertItem(item root.MediaItem) error {
 		}
 
 		err = txn.Set([]byte("items:"+item.UUID.String()), data)
+		if err != nil {
+			return err
+		}
+
+		ts := fmt.Sprintf("%010d\n", item.UpdatedAt.Unix())
+		err = txn.Set([]byte("index:items:by_date_desc:"+ts), item.UUID[:])
 		if err != nil {
 			return err
 		}
