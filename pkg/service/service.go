@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	root "github.com/mediastorage_backend/pkg"
@@ -89,7 +90,7 @@ func (s *Service) Sync(rootDir string) error {
 		return err
 	}
 
-	return s.refreshCachedData()
+	return s.refreshCachedData(rootDir)
 }
 
 func (s *Service) refreshDirectoryData(rootDir string) error {
@@ -217,7 +218,7 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 	})
 }
 
-func (s *Service) refreshCachedData() error {
+func (s *Service) refreshCachedData(rootDir string) error {
 	const itemsPerPage = 2000
 
 	var err error
@@ -236,8 +237,16 @@ func (s *Service) refreshCachedData() error {
 
 		for _, item := range media {
 			log.Println("refresh cached data: ", item.Original.Path)
-			_, err := os.Stat(item.Original.Path)
+			if !strings.HasPrefix(item.Original.Path, rootDir) {
+				err = s.repo.RemoveItem(item.UUID)
+				if err != nil {
+					return err
+				}
 
+				continue
+			}
+
+			_, err := os.Stat(item.Original.Path)
 			if err == nil {
 				continue
 			}
