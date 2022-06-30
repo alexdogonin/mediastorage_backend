@@ -6,7 +6,7 @@ import (
 )
 
 type itemsCursor struct {
-	UUID  string `json:"uuid"`
+	TS    string `json:"uuid"`
 	Limit uint   `json:"limit"`
 }
 

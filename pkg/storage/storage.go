@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/dgraph-io/badger"
 	"github.com/google/uuid"
@@ -86,25 +87,24 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 	}
 
 	err := s.s.View(func(txn *badger.Txn) error {
-		opts := badger.IteratorOptions{
-			Prefix:  []byte("index:items:by_date_desc:"),
-			Reverse: true,
-		}
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = []byte("index:items:by_date:")
+		opts.Reverse = true
 
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		// keySuffix := curs.UUID
-		// if len(keySuffix) == 0 {
-		// 	keySuffix = "z"
-		// }
+		keySuffix := curs.TS
+		if len(keySuffix) == 0 {
+			keySuffix = "z"
+		}
+		it.Seek([]byte("index:items:by_date:" + keySuffix))
 
-		// it.Seek([]byte("index:items:by_date_desc:" + keySuffix))
-		// if len(curs.UUID) != 0 {
-		// 	it.Next()
-		// }
+		if len(curs.TS) != 0 {
+			it.Next()
+		}
 
-		for it.Seek([]byte("index:items:by_date_desc:Z")); it.Valid(); it.Next() {
+		for ; it.Valid(); it.Next() {
 			var item *badger.Item
 
 			err := it.Item().Value(func(val []byte) error {
@@ -128,9 +128,10 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 			}
 
 			mediaItems = append(mediaItems, mediaItem)
-			curs.UUID = string(it.Item().Key())
 
-			if len(mediaItems) >= int(limit) {
+			curs.TS = strings.TrimPrefix(string(it.Item().Key()), "index:items:by_date:")
+
+			if len(mediaItems) >= int(curs.Limit) {
 				break
 			}
 		}
@@ -226,8 +227,8 @@ func (s *Storage) UpsertItem(item root.MediaItem) error {
 			return err
 		}
 
-		ts := fmt.Sprintf("%010d\n", item.UpdatedAt.Unix())
-		err = txn.Set([]byte("index:items:by_date_desc:"+ts), item.UUID[:])
+		ts := fmt.Sprintf("%010d", item.UpdatedAt.Unix())
+		err = txn.Set([]byte("index:items:by_date:"+ts), item.UUID[:])
 		if err != nil {
 			return err
 		}
