@@ -9,7 +9,7 @@ import (
 
 func TestCursorString(t *testing.T) {
 	cursor := itemsCursor{
-		UUID:  "c0ac559a-1296-4610-92a2-00b422fc26f4",
+		TS:    "c0ac559a-1296-4610-92a2-00b422fc26f4",
 		Limit: 12,
 	}
 
@@ -24,7 +24,7 @@ func TestCursorParse(t *testing.T) {
 	c := "eyJ1dWlkIjoiYzBhYzU1OWEtMTI5Ni00NjEwLTkyYTItMDBiNDIyZmMyNmY0IiwibGltaXQiOjEyfQ"
 
 	expected := itemsCursor{
-		UUID:  "c0ac559a-1296-4610-92a2-00b422fc26f4",
+		TS:    "c0ac559a-1296-4610-92a2-00b422fc26f4",
 		Limit: 12,
 	}
 

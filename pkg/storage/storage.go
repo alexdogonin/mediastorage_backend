@@ -1,7 +1,11 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/dgraph-io/badger"
 	"github.com/google/uuid"
@@ -10,6 +14,15 @@ import (
 
 const (
 	defaultLimit = 50
+)
+
+var (
+	ErrNotFound = errors.New("not found")
+)
+
+var (
+	indexItemsByDatePrefix = []byte("index:items:by_date:")
+	indexItemsByPathPrefix = []byte("index:items:by_path:")
 )
 
 type Storage struct {
@@ -85,32 +98,51 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 	}
 
 	err := s.s.View(func(txn *badger.Txn) error {
-		opts := badger.IteratorOptions{
-			Prefix: []byte("items:"),
-		}
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = indexItemsByDatePrefix
+		opts.Reverse = true
 
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		it.Seek([]byte("items:" + curs.UUID))
-		if len(curs.UUID) != 0 {
+		keySuffix := curs.TS
+		if len(keySuffix) == 0 {
+			keySuffix = "z"
+		}
+		it.Seek(append(indexItemsByDatePrefix, keySuffix...))
+
+		if len(curs.TS) != 0 {
 			it.Next()
 		}
 
 		for ; it.Valid(); it.Next() {
-			var item root.MediaItem
+			var item *badger.Item
 
 			err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &item)
+				var UUID uuid.UUID
+				copy(UUID[:], val)
+
+				var err error
+				item, err = txn.Get([]byte("items:" + UUID.String()))
+				return err
 			})
 			if err != nil {
 				return err
 			}
 
-			mediaItems = append(mediaItems, item)
-			curs.UUID = item.UUID.String()
+			var mediaItem root.MediaItem
+			err = item.Value(func(val []byte) error {
+				return json.Unmarshal(val, &mediaItem)
+			})
+			if err != nil {
+				return err
+			}
 
-			if len(mediaItems) >= int(limit) {
+			mediaItems = append(mediaItems, mediaItem)
+
+			curs.TS = string(bytes.TrimPrefix(it.Item().Key(), indexItemsByDatePrefix))
+
+			if len(mediaItems) >= int(curs.Limit) {
 				break
 			}
 		}
@@ -194,19 +226,68 @@ func (s *Storage) Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAl
 	return album, curs.String(), nil
 }
 
-func (s *Storage) UpsertItem(item root.MediaItem) error {
+func (*Storage) itemByUUIDTx(txn *badger.Txn, UUID uuid.UUID) (root.MediaItem, error) {
+	var mediaItem root.MediaItem
+
+	item, err := txn.Get([]byte("items:" + UUID.String()))
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return mediaItem, ErrNotFound
+		}
+		return mediaItem, err
+	}
+
+	err = item.Value(func(val []byte) error {
+		return json.Unmarshal(val, &mediaItem)
+	})
+
+	return mediaItem, err
+}
+
+func (s *Storage) UpsertItem(mediaItem root.MediaItem) error {
 	return s.s.Update(func(txn *badger.Txn) error {
-		data, err := json.Marshal(item)
+		var oldMediaItem *root.MediaItem
+		{
+			i, err := s.itemByUUIDTx(txn, mediaItem.UUID)
+			if err != nil {
+				if !errors.Is(err, ErrNotFound) {
+					return err
+				}
+			} else {
+				oldMediaItem = &i
+			}
+		}
+
+		if oldMediaItem != nil && !oldMediaItem.UpdatedAt.Equal(mediaItem.UpdatedAt) {
+			err := txn.Delete(s.indexByDateKey(oldMediaItem.UpdatedAt))
+			if err != nil {
+				return err
+			}
+		}
+
+		err := txn.Set(s.indexByDateKey(mediaItem.UpdatedAt), mediaItem.UUID[:])
 		if err != nil {
 			return err
 		}
 
-		err = txn.Set([]byte("items:"+item.UUID.String()), data)
+		if oldMediaItem != nil && oldMediaItem.Original.Path != mediaItem.Original.Path {
+			err = txn.Delete(s.indexByPathKey(oldMediaItem.Original.Path))
+			if err != nil {
+				return err
+			}
+		}
+
+		err = txn.Set(s.indexByPathKey(mediaItem.Original.Path), mediaItem.UUID[:])
 		if err != nil {
 			return err
 		}
 
-		return txn.Set([]byte("index:items:by_path:"+item.Original.Path), item.UUID[:])
+		data, err := json.Marshal(mediaItem)
+		if err != nil {
+			return err
+		}
+
+		return txn.Set([]byte("items:"+mediaItem.UUID.String()), data)
 	})
 }
 
@@ -309,7 +390,17 @@ func (s *Storage) RemoveItem(UUID uuid.UUID) error {
 			return err
 		}
 
-		err = txn.Delete([]byte("index:items:by_path:" + UUID.String()))
+		err = txn.Delete(s.indexByPathKey(UUID.String()))
+		if err != nil {
+			return err
+		}
+
+		mediaItem, err := s.itemByUUIDTx(txn, UUID)
+		if err != nil {
+			return err
+		}
+
+		err = txn.Delete(s.indexByDateKey(mediaItem.UpdatedAt))
 		if err != nil {
 			return err
 		}
@@ -386,4 +477,14 @@ func (s *Storage) RemoveAlbum(UUID uuid.UUID) error {
 
 		return txn.Delete([]byte("albums:" + UUID.String()))
 	})
+}
+
+func (s *Storage) indexByDateKey(tm time.Time) []byte {
+	ts := fmt.Sprintf("%010d", tm.Unix())
+
+	return append(indexItemsByDatePrefix, ts...)
+}
+
+func (s *Storage) indexByPathKey(path string) []byte {
+	return append(indexItemsByPathPrefix, path...)
 }
