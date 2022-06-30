@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/dgraph-io/badger"
 	"github.com/google/uuid"
@@ -12,6 +14,15 @@ import (
 
 const (
 	defaultLimit = 50
+)
+
+var (
+	ErrNotFound = errors.New("not found")
+)
+
+var (
+	indexItemsByDatePrefix = []byte("index:items:by_date:")
+	indexItemsByPathPrefix = []byte("index:items:by_path:")
 )
 
 type Storage struct {
@@ -88,7 +99,7 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 
 	err := s.s.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.Prefix = []byte("index:items:by_date:")
+		opts.Prefix = indexItemsByDatePrefix
 		opts.Reverse = true
 
 		it := txn.NewIterator(opts)
@@ -98,7 +109,7 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 		if len(keySuffix) == 0 {
 			keySuffix = "z"
 		}
-		it.Seek([]byte("index:items:by_date:" + keySuffix))
+		it.Seek(append(indexItemsByDatePrefix, keySuffix...))
 
 		if len(curs.TS) != 0 {
 			it.Next()
@@ -129,7 +140,7 @@ func (s *Storage) List(cursor string, limit uint) ([]root.MediaItem, string, err
 
 			mediaItems = append(mediaItems, mediaItem)
 
-			curs.TS = strings.TrimPrefix(string(it.Item().Key()), "index:items:by_date:")
+			curs.TS = string(bytes.TrimPrefix(it.Item().Key(), indexItemsByDatePrefix))
 
 			if len(mediaItems) >= int(curs.Limit) {
 				break
@@ -215,25 +226,68 @@ func (s *Storage) Album(UUID uuid.UUID, limit uint, cursor string) (root.MediaAl
 	return album, curs.String(), nil
 }
 
-func (s *Storage) UpsertItem(item root.MediaItem) error {
+func (*Storage) itemByUUIDTx(txn *badger.Txn, UUID uuid.UUID) (root.MediaItem, error) {
+	var mediaItem root.MediaItem
+
+	item, err := txn.Get([]byte("items:" + UUID.String()))
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return mediaItem, ErrNotFound
+		}
+		return mediaItem, err
+	}
+
+	err = item.Value(func(val []byte) error {
+		return json.Unmarshal(val, &mediaItem)
+	})
+
+	return mediaItem, err
+}
+
+func (s *Storage) UpsertItem(mediaItem root.MediaItem) error {
 	return s.s.Update(func(txn *badger.Txn) error {
-		data, err := json.Marshal(item)
+		var oldMediaItem *root.MediaItem
+		{
+			i, err := s.itemByUUIDTx(txn, mediaItem.UUID)
+			if err != nil {
+				if !errors.Is(err, ErrNotFound) {
+					return err
+				}
+			} else {
+				oldMediaItem = &i
+			}
+		}
+
+		if oldMediaItem != nil && !oldMediaItem.UpdatedAt.Equal(mediaItem.UpdatedAt) {
+			err := txn.Delete(s.indexByDateKey(oldMediaItem.UpdatedAt))
+			if err != nil {
+				return err
+			}
+		}
+
+		err := txn.Set(s.indexByDateKey(mediaItem.UpdatedAt), mediaItem.UUID[:])
 		if err != nil {
 			return err
 		}
 
-		err = txn.Set([]byte("items:"+item.UUID.String()), data)
+		if oldMediaItem != nil && oldMediaItem.Original.Path != mediaItem.Original.Path {
+			err = txn.Delete(s.indexByPathKey(oldMediaItem.Original.Path))
+			if err != nil {
+				return err
+			}
+		}
+
+		err = txn.Set(s.indexByPathKey(mediaItem.Original.Path), mediaItem.UUID[:])
 		if err != nil {
 			return err
 		}
 
-		ts := fmt.Sprintf("%010d", item.UpdatedAt.Unix())
-		err = txn.Set([]byte("index:items:by_date:"+ts), item.UUID[:])
+		data, err := json.Marshal(mediaItem)
 		if err != nil {
 			return err
 		}
 
-		return txn.Set([]byte("index:items:by_path:"+item.Original.Path), item.UUID[:])
+		return txn.Set([]byte("items:"+mediaItem.UUID.String()), data)
 	})
 }
 
@@ -336,7 +390,17 @@ func (s *Storage) RemoveItem(UUID uuid.UUID) error {
 			return err
 		}
 
-		err = txn.Delete([]byte("index:items:by_path:" + UUID.String()))
+		err = txn.Delete(s.indexByPathKey(UUID.String()))
+		if err != nil {
+			return err
+		}
+
+		mediaItem, err := s.itemByUUIDTx(txn, UUID)
+		if err != nil {
+			return err
+		}
+
+		err = txn.Delete(s.indexByDateKey(mediaItem.UpdatedAt))
 		if err != nil {
 			return err
 		}
@@ -413,4 +477,14 @@ func (s *Storage) RemoveAlbum(UUID uuid.UUID) error {
 
 		return txn.Delete([]byte("albums:" + UUID.String()))
 	})
+}
+
+func (s *Storage) indexByDateKey(tm time.Time) []byte {
+	ts := fmt.Sprintf("%010d", tm.Unix())
+
+	return append(indexItemsByDatePrefix, ts...)
+}
+
+func (s *Storage) indexByPathKey(path string) []byte {
+	return append(indexItemsByPathPrefix, path...)
 }
