@@ -7,10 +7,15 @@ import (
 
 type Repository interface {
 	Item(uuid.UUID) (root.MediaItem, error)
+	ItemThumb(uuid.UUID) ([]byte, error)
+	ItemDetail(uuid.UUID) ([]byte, error)
 	ItemByPath(p string) (uuid.UUID, bool, error)
 	List(cursor string, limit uint) ([]root.MediaItem, string, error)
 	UpsertItem(root.MediaItem) error
 	RemoveItem(uuid.UUID) error
+	AddItemToQueue(uuid.UUID)	error
+	RemoveItemFromQueue(uuid.UUID) error
+	
 
 	// TODO create separated methods Album and AlbumItems
 	// method Album returns description of an album, AlbumItems returns album items

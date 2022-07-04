@@ -2,13 +2,14 @@ package http
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/google/uuid"
 )
 
-func NewMediaList(addr string, s Servicer) http.HandlerFunc {
+func NewMediaList(s Servicer, originalUrl, thumbUrl, detailUrl func(UUID uuid.UUID) string) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		query := req.URL.Query()
 
@@ -39,9 +40,9 @@ func NewMediaList(addr string, s Servicer) http.HandlerFunc {
 		for _, m := range media {
 			resp.Media = append(resp.Media, MediaItem{
 				UUID:        m.UUID.String(),
-				ThumbURL:    fmt.Sprintf("%s/%s", addr, m.UUID.String()),
-				DetailURL:   fmt.Sprintf("%s/%s", addr, m.UUID.String()),
-				OriginalURL: fmt.Sprintf("%s/%s", addr, m.UUID.String()),
+				ThumbURL:    thumbUrl(m.UUID),
+				DetailURL:   detailUrl(m.UUID),
+				OriginalURL: originalUrl(m.UUID),
 			})
 		}
 
@@ -53,7 +54,7 @@ func NewMediaList(addr string, s Servicer) http.HandlerFunc {
 	}
 }
 
-func NewMediaListV2(addr string, s Servicer) http.HandlerFunc {
+func NewMediaListV2(s Servicer, originalUrl, thumbUrl, detailUrl func(UUID uuid.UUID) string) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		query := req.URL.Query()
 
@@ -82,24 +83,34 @@ func NewMediaListV2(addr string, s Servicer) http.HandlerFunc {
 		}
 
 		for _, m := range media {
-			resp.Media = append(resp.Media, MediaItem{
+			mediaItem := MediaItem{
 				UUID: m.UUID.String(),
-				Thumb: &MediaItemInfo{
-					URL:    fmt.Sprintf("%s/%s", addr, m.UUID.String()),
-					Width:  m.Thumb.Width,
-					Height: m.Thumb.Height,
-				},
-				Detail: &MediaItemInfo{
-					URL:    fmt.Sprintf("%s/%s", addr, m.UUID.String()),
-					Width:  m.Detail.Width,
-					Height: m.Detail.Height,
-				},
 				Original: &MediaItemInfo{
-					URL:    fmt.Sprintf("%s/%s", addr, m.UUID.String()),
+					URL:    thumbUrl(m.UUID),
 					Width:  m.Original.Width,
 					Height: m.Original.Height,
 				},
-			})
+			}
+
+			mediaItem.Thumb = mediaItem.Original
+			if m.Thumb != nil {
+				mediaItem.Thumb = &MediaItemInfo{
+					URL:    thumbUrl(m.UUID),
+					Width:  m.Thumb.Width,
+					Height: m.Thumb.Height,
+				}
+			}
+
+			mediaItem.Detail = mediaItem.Original
+			if m.Detail != nil {
+				mediaItem.Detail = &MediaItemInfo{
+					URL:    detailUrl(m.UUID),
+					Width:  m.Thumb.Width,
+					Height: m.Thumb.Height,
+				}
+			}
+
+			resp.Media = append(resp.Media, mediaItem)
 		}
 
 		rw.Header().Set("content-type", "application/json")

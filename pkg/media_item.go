@@ -8,14 +8,14 @@ import (
 
 type MediaItem struct {
 	UUID      uuid.UUID
-	Thumb     MediaItemInfo
-	Detail    MediaItemInfo
-	Original  MediaItemInfo
+	Path      string
 	UpdatedAt time.Time
+	Original  MediaItemInfo
+	Thumb     *MediaItemInfo
+	Detail    *MediaItemInfo
 }
 
 type MediaItemInfo struct {
-	Path   string
 	Width  uint
 	Height uint
 	Format string

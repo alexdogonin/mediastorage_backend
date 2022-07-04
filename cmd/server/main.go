@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
+	"github.com/google/uuid"
+
 	apihttp "github.com/mediastorage_backend/pkg/api/http"
 	"github.com/mediastorage_backend/pkg/service"
 	"github.com/mediastorage_backend/pkg/storage"
@@ -93,9 +95,28 @@ func main() {
 
 	itemAddr := scheme + "://" + addr + ":" + port + "/media"
 	albumAddr := itemAddr + "/albums"
-	mux.Get("/media", apihttp.NewMediaList(itemAddr, &svc))
+	originalUrl := func(UUID uuid.UUID) string {
+		return fmt.Sprintf("%s/%s", addr, UUID.String())
+	}
+
+	mux.Get("/media", apihttp.NewMediaList(&svc,
+		originalUrl,
+		originalUrl,
+		originalUrl,
+	))
 	mux.Get("/media/{id}", apihttp.NewMediaItem(&svc))
-	mux.Get("/v2/media", apihttp.NewMediaListV2(itemAddr, &svc))
+	mux.Get("/media/{id}/thumb", apihttp.NewMediaItemThumb(&svc))
+	mux.Get("/media/{id}/detail", apihttp.NewMediaItemDetail(&svc))
+	mux.Get("/v2/media", apihttp.NewMediaListV2(
+		&svc,
+		originalUrl,
+		func(UUID uuid.UUID) string {
+			return fmt.Sprintf("%s/%s/thumb", addr, UUID.String())
+		},
+		func(UUID uuid.UUID) string {
+			return fmt.Sprintf("%s/%s/detail", addr, UUID.String())
+		},
+	))
 	mux.Get("/media/albums/{id}", apihttp.NewAlbumHandler(&svc, albumAddr, itemAddr))
 	mux.Get("/media/albums", apihttp.NewAlbumHandler(&svc, albumAddr, itemAddr))
 

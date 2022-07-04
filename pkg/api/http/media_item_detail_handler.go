@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func NewMediaItem(s Servicer) http.HandlerFunc {
+func NewMediaItemDetail(s Servicer) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		id := chi.URLParam(req, "id")
 		if len(id) == 0 {
@@ -24,13 +24,18 @@ func NewMediaItem(s Servicer) http.HandlerFunc {
 			return
 		}
 
-		item, err := s.Item(UUID)
+		data, err := s.ItemDetail(UUID)
 		if err != nil {
 			log.Println(err)
 			http.Error(rw, "internal error", http.StatusInternalServerError)
 			return
 		}
 
-		http.ServeFile(rw, req, item.Path)
+		_, err = rw.Write(data)
+		if err != nil {
+			log.Println(err)
+			http.Error(rw, "internal error", http.StatusInternalServerError)
+			return
+		}
 	}
 }
