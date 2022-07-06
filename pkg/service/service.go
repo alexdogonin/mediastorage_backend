@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	root "github.com/mediastorage_backend/pkg"
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 var rootAlbumUUID = uuid.Nil
@@ -60,6 +61,38 @@ func newItemFromFile(filePath string) (root.MediaItem, error) {
 		Width:  uint(cfg.Width),
 		Height: uint(cfg.Height),
 		Format: format,
+	}
+
+	{
+		f := func() error {
+			_, err = f.Seek(0, 0)
+			if err != nil {
+				return err
+			}
+			exifParms, err := exif.Decode(f)
+			if err != nil {
+				return err
+			}
+
+			tag, err := exifParms.Get(exif.Orientation)
+			if err != nil {
+				return err
+			}
+
+			orienataion, err := tag.Int(0)
+			if err != nil {
+				return err
+			}
+
+			if orienataion == 5 || orienataion == 6 {
+				info.Height, info.Width = info.Width, info.Height
+			}
+			return nil
+		}
+		err = f()
+		if err != nil {
+			log.Println(err)
+		}
 	}
 
 	item := root.MediaItem{
@@ -203,7 +236,8 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 
 		item, err := newItemFromFile(p)
 		if err != nil {
-			return err
+			log.Println(err)
+			return nil
 		}
 
 		err = s.repo.UpsertItem(item)
