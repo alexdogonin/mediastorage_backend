@@ -122,6 +122,8 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 			if info.ModTime().Equal(item.UpdatedAt) {
 				return nil
 			}
+
+			return s.repo.AddItemToQueue(item.UUID)
 		}
 
 		d := filepath.Dir(p)
@@ -154,10 +156,15 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 			return err
 		}
 
-		return s.repo.AddItemToAlbum(baseAlbumUUID, root.MediaAlbumItem{
+		err = s.repo.AddItemToAlbum(baseAlbumUUID, root.MediaAlbumItem{
 			Type: root.AlbumItem_File,
 			UUID: item.UUID,
 		})
+		if err != nil {
+			return err
+		}
+
+		return s.repo.AddItemToQueue(item.UUID)
 	})
 }
 

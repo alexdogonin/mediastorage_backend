@@ -1,19 +1,31 @@
 package service
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	root "github.com/mediastorage_backend/pkg"
-	"github.com/rwcarlsen/goexif/exif"
 )
 
 var rootAlbumUUID = uuid.Nil
 
 type Service struct {
-	repo Repository
+	repo   Repository
+	logger Logger
 }
 
 func New(repo Repository) Service {
-	return Service{repo}
+	s := Service{repo, nil}
+
+	var log Logger
+	go func() {
+		for range time.Tick(time.Second) {
+			err := s.processQueue()
+			if err != nil {
+				log.Error(err)
+			}
+		}
+	}()
 }
 
 func (s *Service) Item(uuid uuid.UUID) (root.MediaItem, error) {

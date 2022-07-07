@@ -13,9 +13,11 @@ type Repository interface {
 	List(cursor string, limit uint) ([]root.MediaItem, string, error)
 	UpsertItem(root.MediaItem) error
 	RemoveItem(uuid.UUID) error
-	AddItemToQueue(uuid.UUID)	error
-	RemoveItemFromQueue(uuid.UUID) error
-	
+	UpsertItemThumb(UUID uuid.UUID, data []byte) error
+	UpsertItemDetail(UUID uuid.UUID, data []byte) error
+
+	AddItemToQueue(uuid.UUID) error
+	WalkAndPruneQueue(func(uuid.UUID) error) error
 
 	// TODO create separated methods Album and AlbumItems
 	// method Album returns description of an album, AlbumItems returns album items
