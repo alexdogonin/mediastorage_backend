@@ -63,44 +63,42 @@ func newItemFromFile(filePath string) (root.MediaItem, error) {
 		Format: format,
 	}
 
-	{
-		f := func() error {
-			_, err = f.Seek(0, 0)
-			if err != nil {
-				return err
-			}
-			exifParms, err := exif.Decode(f)
-			if err != nil {
-				return err
-			}
-
-			tag, err := exifParms.Get(exif.Orientation)
-			if err != nil {
-				return err
-			}
-
-			orienataion, err := tag.Int(0)
-			if err != nil {
-				return err
-			}
-
-			if orienataion == 5 || orienataion == 6 {
-				info.Height, info.Width = info.Width, info.Height
-			}
-			return nil
-		}
-		err = f()
-		if err != nil {
-			log.Println(err)
-		}
-	}
-
 	item := root.MediaItem{
 		UUID:      uuid,
 		Original:  info,
 		Detail:    info,
 		Thumb:     info,
 		UpdatedAt: stat.ModTime(),
+	}
+
+	{ //check valid orientation of the image by exif data
+		_, err = f.Seek(0, 0)
+		if err != nil {
+			return root.MediaItem{}, err
+		}
+
+		exifParms, err := exif.Decode(f)
+		if err != nil {
+			return item, nil
+		}
+
+		tag, err := exifParms.Get(exif.Orientation)
+		if err != nil {
+			return root.MediaItem{}, err
+		}
+
+		orienataion, err := tag.Int(0)
+		if err != nil {
+			return root.MediaItem{}, err
+		}
+
+		if orienataion == 5 || orienataion == 6 {
+			info.Height, info.Width = info.Width, info.Height
+		}
+
+		item.Detail = info
+		item.Thumb = info
+		item.Original = info
 	}
 
 	return item, nil
