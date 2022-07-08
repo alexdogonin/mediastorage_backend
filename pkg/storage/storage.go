@@ -27,6 +27,7 @@ var (
 	itemsPrefix            = []byte("items:")
 	thumbSuffix            = []byte(":thumb")
 	detailSuffix           = []byte(":detail")
+	queuePrefix            = []byte("queue:")
 )
 
 type Storage struct {
@@ -54,16 +55,16 @@ func (*Storage) indexItemsByPathKey(path string) []byte {
 }
 
 func (*Storage) itemKey(UUID uuid.UUID) []byte {
-	return append(itemsPrefix, UUID[:]...)
+	return append(itemsPrefix, []byte(UUID.String())...)
 }
 
 func (*Storage) itemThumbKey(UUID uuid.UUID) []byte {
-	key := append(itemsPrefix, UUID[:]...)
+	key := append(itemsPrefix, []byte(UUID.String())...)
 	return append(key, thumbSuffix...)
 }
 
 func (*Storage) itemDetailKey(UUID uuid.UUID) []byte {
-	key := append(itemsPrefix, UUID[:]...)
+	key := append(itemsPrefix, []byte(UUID.String())...)
 	return append(key, detailSuffix...)
 }
 
@@ -83,4 +84,8 @@ func (s *Storage) itemByUUIDTx(txn *badger.Txn, UUID uuid.UUID) (root.MediaItem,
 	})
 
 	return mediaItem, err
+}
+
+func (*Storage) queuedItemKey(UUID uuid.UUID) []byte {
+	return append(queuePrefix, []byte(UUID.String())...)
 }

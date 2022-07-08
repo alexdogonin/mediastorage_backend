@@ -24,7 +24,7 @@ func NewMediaItemThumb(s Servicer) http.HandlerFunc {
 			return
 		}
 
-		data, err := s.ItemDetail(UUID)
+		data, err := s.ItemThumb(UUID)
 		if err != nil {
 			log.Println(err)
 			http.Error(rw, "internal error", http.StatusInternalServerError)

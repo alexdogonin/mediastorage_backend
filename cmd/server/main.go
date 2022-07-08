@@ -96,7 +96,7 @@ func main() {
 	itemAddr := scheme + "://" + addr + ":" + port + "/media"
 	albumAddr := itemAddr + "/albums"
 	originalUrl := func(UUID uuid.UUID) string {
-		return fmt.Sprintf("%s/%s", addr, UUID.String())
+		return fmt.Sprintf("%s://%s:%s/media/%s", scheme, addr, port, UUID.String())
 	}
 
 	mux.Get("/media", apihttp.NewMediaList(&svc,
@@ -111,10 +111,10 @@ func main() {
 		&svc,
 		originalUrl,
 		func(UUID uuid.UUID) string {
-			return fmt.Sprintf("%s/%s/thumb", addr, UUID.String())
+			return fmt.Sprintf("%s://%s:%s/media/%s/thumb", scheme, addr, port, UUID.String())
 		},
 		func(UUID uuid.UUID) string {
-			return fmt.Sprintf("%s/%s/detail", addr, UUID.String())
+			return fmt.Sprintf("%s://%s:%s/media/%s/detail", scheme, addr, port, UUID.String())
 		},
 	))
 	mux.Get("/media/albums/{id}", apihttp.NewAlbumHandler(&svc, albumAddr, itemAddr))

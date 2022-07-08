@@ -86,7 +86,7 @@ func NewMediaListV2(s Servicer, originalUrl, thumbUrl, detailUrl func(UUID uuid.
 			mediaItem := MediaItem{
 				UUID: m.UUID.String(),
 				Original: &MediaItemInfo{
-					URL:    thumbUrl(m.UUID),
+					URL:    originalUrl(m.UUID),
 					Width:  m.Original.Width,
 					Height: m.Original.Height,
 				},

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,22 +11,35 @@ import (
 var rootAlbumUUID = uuid.Nil
 
 type Service struct {
-	repo   Repository
-	logger Logger
+	repo Repository
+}
+
+type logger struct{}
+
+func (logger) Error(args ...interface{}) {
+	log.Println(args...)
+}
+func (logger) Errorf(format string, args ...interface{}) {
+	log.Printf(format, args...)
 }
 
 func New(repo Repository) Service {
-	s := Service{repo, nil}
+	s := Service{repo}
 
-	var log Logger
+	var log Logger = logger{}
 	go func() {
 		for range time.Tick(time.Second) {
-			err := s.processQueue()
+			err := s.repo.WalkAndPruneQueue(func(UUID uuid.UUID) error {
+				return s.processItem(UUID)
+			})
+
 			if err != nil {
 				log.Error(err)
 			}
 		}
 	}()
+
+	return s
 }
 
 func (s *Service) Item(uuid uuid.UUID) (root.MediaItem, error) {

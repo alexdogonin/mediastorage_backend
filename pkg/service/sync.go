@@ -165,6 +165,7 @@ func (s *Service) refreshDirectoryData(rootDir string) error {
 		}
 
 		return s.repo.AddItemToQueue(item.UUID)
+		// return s.processItem(item.UUID)
 	})
 }
 
@@ -347,16 +348,16 @@ func newItemFromFile(filePath string) (root.MediaItem, error) {
 			return root.MediaItem{}, err
 		}
 
-		orienataion, err := tag.Int(0)
+		orientation, err := tag.Int(0)
 		if err != nil {
 			return root.MediaItem{}, err
 		}
 
-		if orienataion == 5 || orienataion == 6 {
+		if orientation == 5 || orientation == 6 {
 			info.Height, info.Width = info.Width, info.Height
 		}
 
-		item.Original = info
+		item.Orientation = root.Orientation(orientation)
 	}
 
 	return item, nil
