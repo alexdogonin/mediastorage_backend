@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	root "github.com/mediastorage_backend/pkg"
 )
 
 func NewMediaList(s Servicer, originalUrl, thumbUrl, detailUrl func(UUID uuid.UUID) string) http.HandlerFunc {
@@ -91,6 +92,10 @@ func NewMediaListV2(s Servicer, originalUrl, thumbUrl, detailUrl func(UUID uuid.
 					Height: m.Original.Height,
 				},
 			}
+			switch m.Orientation {
+			case root.Orientation270, root.Orientation270Mirrored, root.Orientation90, root.Orientation90Mirrored:
+				mediaItem.Original.Height, mediaItem.Original.Width = mediaItem.Original.Width, mediaItem.Original.Height
+			}
 
 			mediaItem.Thumb = mediaItem.Original
 			if m.Thumb != nil {
@@ -105,8 +110,8 @@ func NewMediaListV2(s Servicer, originalUrl, thumbUrl, detailUrl func(UUID uuid.
 			if m.Detail != nil {
 				mediaItem.Detail = &MediaItemInfo{
 					URL:    detailUrl(m.UUID),
-					Width:  m.Thumb.Width,
-					Height: m.Thumb.Height,
+					Width:  m.Detail.Width,
+					Height: m.Detail.Height,
 				}
 			}
 

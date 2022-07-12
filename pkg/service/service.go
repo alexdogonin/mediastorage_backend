@@ -23,15 +23,25 @@ func (logger) Errorf(format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
+func (logger) Info(args ...interface{}) {
+	log.Println(args...)
+}
+func (logger) Infof(format string, args ...interface{}) {
+	log.Printf(format, args...)
+}
+
 func New(repo Repository) Service {
 	s := Service{repo}
 
 	var log Logger = logger{}
 	go func() {
 		for range time.Tick(time.Second) {
+			log.Info("start processing")
+			ts := time.Now()
 			err := s.repo.WalkAndPruneQueue(func(UUID uuid.UUID) error {
 				return s.processItem(UUID)
 			})
+			log.Info("processing's been finished, ", time.Since(ts))
 
 			if err != nil {
 				log.Error(err)

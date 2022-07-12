@@ -36,59 +36,54 @@ func (s *Service) processItem(UUID uuid.UUID) error {
 		return err
 	}
 
-	// imgToDetailFactor := float64(detailHeight) / float64(img.Bounds().Dy())
-	// width := imgToDetailFactor * float64(img.Bounds().Dx())
-	// img = resize.Resize(uint(width), detailHeight, img, resize.Lanczos3)
+	imgHeight := img.Bounds().Dy()
+	imgWidth := img.Bounds().Dx()
+	var angle float64
 
-	// c := gg.NewContext(detailHeight, int(width))
-	// c.Scale(imgToDetailFactor, imgToDetailFactor)
-	// c.DrawImage(img, 0, 0)
-	// c.RotateAbout(-math.Pi/2, float64(detailHeight)/2, float64(width)/2)
-	// img = c.Image()
+	switch item.Orientation {
+	case root.Orientation270, root.Orientation270Mirrored:
+		angle = -math.Pi
+		imgHeight, imgWidth = imgWidth, imgHeight
+	case root.Orientation90, root.Orientation90Mirrored:
+		angle = math.Pi / 2
+		imgHeight, imgWidth = imgWidth, imgHeight
+	}
 
-	// switch item.Orientation {
-	// case root.Orientation90, root.Orientation90Mirrored:
-	// 	c := gg.NewContextForImage(img)
-	// 	c.Rotate(-math.Pi)
-	// 	img = c.Image()
-	// case root.Orientation270, root.Orientation270Mirrored:
-	// 	c := gg.NewContextForImage(img)
-	// 	c.Rotate(math.Pi)
-	// 	img = c.Image()
-	// }
+	scaleFactor := float64(detailHeight) / float64(imgHeight) // в данном случае (orientation)
 
-	buf := bytes.NewBuffer(make([]byte, 0, 200))
-	// err = jpeg.Encode(buf, img, &jpeg.Options{Quality: 30})
-	// if err != nil {
-	// 	return err
-	// }
+	c := gg.NewContext(int(float64(imgWidth)*scaleFactor), detailHeight)
 
-	// err = s.repo.UpsertItemDetail(UUID, buf.Bytes())
-	// if err != nil {
-	// 	return err
-	// }
+	c.RotateAbout(angle, float64(c.Width())/2, float64(c.Width())/2)
 
-	// item.Detail = &root.MediaItemInfo{
-	// 	Width:  uint(img.Bounds().Dx()),
-	// 	Height: uint(img.Bounds().Dy()),
-	// 	Format: "image/jpeg",
-	// }
-
-	ff := float64(thumbHeight) / float64(img.Bounds().Dx()) // в данном случае (orientation)
-	// fff := 1 / ff
-
-	c := gg.NewContext(int(float64(img.Bounds().Dy())*ff), thumbHeight)
-	c.RotateAbout(math.Pi/2, float64(c.Width())/2, float64(c.Width())/2)
-	c.Scale(float64(ff), float64(ff))
-	// c.DrawImageAnchored(img, int(45*fff), 100*6, .5, .5)
+	c.Scale(float64(scaleFactor), float64(scaleFactor))
 	c.DrawImage(img, 0, 0)
 
 	img = c.Image()
 
-	// img = resize.Resize(uint(width), thumbHeight, img, resize.Lanczos3)
-	// buf.Reset()
+	buf := bytes.NewBuffer(make([]byte, 0, 200))
+	err = jpeg.Encode(buf, img, &jpeg.Options{Quality: 70})
+	if err != nil {
+		return err
+	}
 
-	err = jpeg.Encode(buf, img, &jpeg.Options{Quality: 100})
+	err = s.repo.UpsertItemDetail(UUID, buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	item.Detail = &root.MediaItemInfo{
+		Width:  uint(c.Width()),
+		Height: uint(c.Height()),
+		Format: "image/png",
+	}
+
+	c = gg.NewContext(int(float64(c.Width())*detailToThumbFactor), thumbHeight)
+
+	c.Scale(float64(detailToThumbFactor), float64(detailToThumbFactor))
+	c.DrawImage(img, 0, 0)
+
+	buf.Reset()
+	err = jpeg.Encode(buf, img, &jpeg.Options{Quality: 30})
 	if err != nil {
 		return err
 	}
@@ -99,9 +94,9 @@ func (s *Service) processItem(UUID uuid.UUID) error {
 	}
 
 	item.Thumb = &root.MediaItemInfo{
-		Width:  uint(img.Bounds().Dx()),
-		Height: uint(img.Bounds().Dy()),
-		Format: "image/jpeg",
+		Width:  uint(c.Width()),
+		Height: uint(c.Height()),
+		Format: "image/png",
 	}
 
 	return s.repo.UpsertItem(item)

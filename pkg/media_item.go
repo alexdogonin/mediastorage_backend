@@ -12,10 +12,10 @@ const (
 	OrientationNone        Orientation = 0
 	Orientation0           Orientation = 1
 	Orientation0Mirrored   Orientation = 2
-	Orientation90          Orientation = 3
-	Orientation90Mirrored  Orientation = 4
-	Orientation180         Orientation = 5
-	Orientation180Mirrored Orientation = 6
+	Orientation180         Orientation = 3
+	Orientation180Mirrored Orientation = 4
+	Orientation90          Orientation = 5
+	Orientation90Mirrored  Orientation = 6
 	Orientation270         Orientation = 7
 	Orientation270Mirrored Orientation = 8
 )
