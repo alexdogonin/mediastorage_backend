@@ -104,6 +104,21 @@ func (s *Service) processItem(UUID uuid.UUID) error {
 	return s.repo.UpsertItem(item)
 }
 
+/*
+Install image magick
+
+	wget https://github.com/ImageMagick/ImageMagick6/archive/6.9.10-11.tar.gz && \
+	tar xvzf 6.9.10-11.tar.gz && \
+	cd ImageMagick* && \
+	./configure \
+	    --without-magick-plus-plus \
+	    --without-perl \
+	    --disable-openmp \
+	    --with-gvc=no \
+	    --disable-docs && \
+	make -j$(nproc) && make install && \
+	ldconfig /usr/local/lib
+*/
 func (s *Service) processItem1(UUID uuid.UUID) error {
 	item, err := s.repo.Item(UUID)
 	if err != nil {
