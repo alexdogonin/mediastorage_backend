@@ -39,7 +39,7 @@ func New(repo Repository) Service {
 			log.Info("start processing")
 			ts := time.Now()
 			err := s.repo.WalkAndPruneQueue(func(UUID uuid.UUID) error {
-				return s.processItem(UUID)
+				return s.processItem1(UUID)
 			})
 			log.Info("processing's been finished, ", time.Since(ts))
 

@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"image"
 	"image/jpeg"
+	"io/ioutil"
 	"math"
 	"os"
 
 	"github.com/fogleman/gg"
 	"github.com/google/uuid"
 	root "github.com/mediastorage_backend/pkg"
+	"gopkg.in/gographics/imagick.v2/imagick"
 )
 
 const (
@@ -97,6 +99,71 @@ func (s *Service) processItem(UUID uuid.UUID) error {
 		Width:  uint(c.Width()),
 		Height: uint(c.Height()),
 		Format: "image/png",
+	}
+
+	return s.repo.UpsertItem(item)
+}
+
+func (s *Service) processItem1(UUID uuid.UUID) error {
+	item, err := s.repo.Item(UUID)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Open(item.Path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	mw := imagick.NewMagickWand()
+	defer mw.Destroy()
+
+	fileBytes, err := ioutil.ReadAll(f)
+	if err != nil {
+		return err
+	}
+
+	err = mw.ReadImageBlob(fileBytes)
+	if err != nil {
+		return err
+	}
+
+	imageWidth := mw.GetImageWidth()
+	imageHeight := mw.GetImageHeight()
+
+	scaleFactor := float64(detailHeight) / float64(imageHeight)
+
+	err = mw.ResizeImage(uint(float64(imageWidth)*scaleFactor), detailHeight, imagick.FILTER_LANCZOS, 1)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.UpsertItemDetail(UUID, mw.GetImageBlob())
+	if err != nil {
+		return err
+	}
+
+	item.Detail = &root.MediaItemInfo{
+		Width:  uint(float64(imageWidth) * scaleFactor),
+		Height: uint(detailHeight),
+		Format: "image/jpeg",
+	}
+
+	err = mw.ResizeImage(uint(float64(imageWidth)*scaleFactor*detailToThumbFactor), thumbHeight, imagick.FILTER_LANCZOS, 1)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.UpsertItemThumb(UUID, mw.GetImageBlob())
+	if err != nil {
+		return err
+	}
+
+	item.Thumb = &root.MediaItemInfo{
+		Width:  uint(float64(imageWidth) * scaleFactor * detailToThumbFactor),
+		Height: uint(thumbHeight),
+		Format: "image/jpeg",
 	}
 
 	return s.repo.UpsertItem(item)
