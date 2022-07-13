@@ -49,7 +49,7 @@ func (s *Service) processItem(UUID uuid.UUID) error {
 		imgHeight, imgWidth = imgWidth, imgHeight
 	}
 
-	scaleFactor := float64(detailHeight) / float64(imgHeight) // в данном случае (orientation)
+	scaleFactor := float64(detailHeight) / float64(imgHeight)
 
 	c := gg.NewContext(int(float64(imgWidth)*scaleFactor), detailHeight)
 

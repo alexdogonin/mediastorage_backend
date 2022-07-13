@@ -6,8 +6,3 @@ type Logger interface {
 	Info(...interface{})
 	Infof(string, ...interface{})
 }
-
-type nopLogger struct{}
-
-func (nopLogger) Error(...interface{})          {}
-func (nopLogger) Errorf(string, ...interface{}) {}
