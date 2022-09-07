@@ -1,6 +1,18 @@
 # mediastorage backend  
 
-## /media?[cursor=\<string>]
+## How to run
+
+```ROOT_PATH=/home/user/Images PORT=3000 server```
+
+## Envirenment
+
+**ROOT_PATH** - directory to scan. Required  
+**PORT** - port to listen. Required  
+**ADDRESS** - IP address to listen. Default: *0.0.0.0*  
+**SCHEME** - scheme. Default: *http*  
+
+## Endpoints
+### __/media?[cursor=\<string>]__
 
 получение списка всех изображений и видео постранично. одна страница - 50 элементов
 ответ:  
@@ -19,6 +31,6 @@
 }
 ```
 
-## /media/{id}
+### __/media/{id}__
 
 получение конкретного файла
